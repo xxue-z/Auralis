@@ -10,8 +10,11 @@ from websockets.server import WebSocketServerProtocol
 
 from config import config
 from intent.parser import IntentParser
+from model.router import ModelRouter
+from prompts.system import build_system_prompt
+from tools.functions import TOOLS
 from settings.ai_handler import (
-    handle_settings_query, handle_settings_change,
+    handle_settings_change,
     format_settings_reply, format_change_reply,
 )
 from tts.router import TTSRouter
@@ -26,6 +29,7 @@ logger = logging.getLogger("auralis.agent")
 
 connected_clients: set[WebSocketServerProtocol] = set()
 intent_parser = IntentParser()
+model_router = ModelRouter()
 tts_router = TTSRouter()
 voice_cloner = VoiceCloner()
 voice_generator = VoiceGenerator()
@@ -35,6 +39,10 @@ pending_results: dict[str, asyncio.Future] = {}
 
 # 用户设置缓存（前端同步过来的）
 user_settings: dict = {}
+
+# 对话历史（按 session 维护，内存中）
+conversation_history: dict[str, list[dict]] = {}
+MAX_HISTORY = 20  # 每个 session 最多保留的消息数
 
 
 async def handle_message(ws: WebSocketServerProtocol, raw: str):
@@ -74,137 +82,318 @@ async def handle_user_message(ws: WebSocketServerProtocol, data: dict):
     message_id = data.get("id", "")
     logger.info(f"用户消息: {content}")
 
-    # 意图识别
+    # 1. 先尝试规则匹配（快速路径）
     result = intent_parser.parse(content)
-    logger.info(f"意图识别: {result['intent']}")
+    logger.info(f"规则匹配: {result['intent']}")
 
-    if result["intent"] == "unknown":
+    # 明确的 UI 操作直接处理，不走 LLM
+    if result["intent"] in ("settings_open", "settings_close"):
+        if result["intent"] == "settings_open":
+            await ws.send(json.dumps({"type": "agent_command", "command": "open-settings"}))
+            await send_text_response(ws, message_id, "好的，已为你打开设置面板。")
+        else:
+            await ws.send(json.dumps({"type": "agent_command", "command": "close-settings"}))
+            await send_text_response(ws, message_id, "设置面板已关闭。")
+        return
+
+    # 设置查询/修改也可以走规则快速路径
+    if result["intent"] == "settings_query":
+        await _handle_settings_query(ws, message_id)
+        return
+
+    if result["intent"] == "settings_change":
+        await _handle_settings_change(ws, message_id, result)
+        return
+
+    # 有明确 capability 的操作也走规则路径（如"打开记事本"、"查看系统信息"）
+    if result["intent"] != "unknown" and result["capabilities"]:
+        if result["reply"]:
+            await send_text_response(ws, message_id, result["reply"])
+        await _execute_capabilities(ws, message_id, result)
+        return
+
+    # 2. 规则匹配失败或 unknown → 调用 LLM
+    await _handle_with_llm(ws, message_id, content)
+
+
+async def _handle_settings_query(ws: WebSocketServerProtocol, message_id: str):
+    """处理设置查询（规则路径）"""
+    request_id = str(uuid.uuid4())[:8]
+    future = asyncio.get_event_loop().create_future()
+    pending_results[request_id] = future
+
+    await ws.send(json.dumps({
+        "type": "settings_query",
+        "request_id": request_id,
+    }))
+
+    try:
+        query_result = await asyncio.wait_for(future, timeout=10.0)
+        reply = format_settings_reply(query_result)
+        await send_text_response(ws, message_id, reply)
+    except asyncio.TimeoutError:
+        await send_text_response(ws, message_id, "获取设置超时，请重试。")
+    finally:
+        pending_results.pop(request_id, None)
+
+
+async def _handle_settings_change(ws: WebSocketServerProtocol, message_id: str, result: dict):
+    """处理设置修改（规则路径）"""
+    changes = result.get("settings_changes", [])
+    if not changes:
+        await send_text_response(ws, message_id, "请告诉我你想修改什么设置。")
+        return
+
+    change_result = handle_settings_change(changes)
+    needs_confirm = [r for r in change_result["results"] if r.get("needs_confirm")]
+    ready_changes = [r for r in change_result["results"] if r.get("success")]
+
+    if needs_confirm:
+        confirm_msg = "\n".join(r["message"] for r in needs_confirm)
+        await send_text_response(ws, message_id, f"需要你的确认：\n{confirm_msg}")
+        return
+
+    if ready_changes:
+        request_id = str(uuid.uuid4())[:8]
+        future = asyncio.get_event_loop().create_future()
+        pending_results[request_id] = future
+
+        await ws.send(json.dumps({
+            "type": "settings_change",
+            "request_id": request_id,
+            "changes": [{"key": r["key"], "value": r["value"]} for r in ready_changes],
+        }))
+
+        try:
+            apply_result = await asyncio.wait_for(future, timeout=10.0)
+            reply = format_change_reply(apply_result)
+            await send_text_response(ws, message_id, reply)
+        except asyncio.TimeoutError:
+            await send_text_response(ws, message_id, "设置修改超时，请重试。")
+        finally:
+            pending_results.pop(request_id, None)
+        return
+
+    reply = format_change_reply(change_result)
+    await send_text_response(ws, message_id, reply)
+
+
+async def _execute_capabilities(ws: WebSocketServerProtocol, message_id: str, result: dict):
+    """执行 capability 操作"""
+    request_id = str(uuid.uuid4())[:8]
+    logger.info(f"发送 capability 请求: {request_id}, {len(result['capabilities'])} 个操作")
+
+    future = asyncio.get_event_loop().create_future()
+    pending_results[request_id] = future
+
+    await ws.send(json.dumps({
+        "type": "capability_request",
+        "request_id": request_id,
+        "capabilities": result["capabilities"],
+    }))
+
+    try:
+        cap_results = await asyncio.wait_for(future, timeout=30.0)
+        reply = format_capability_results(result["intent"], cap_results)
+        await send_text_response(ws, message_id, reply)
+    except asyncio.TimeoutError:
+        await send_text_response(ws, message_id, "操作执行超时，请重试。")
+    finally:
+        pending_results.pop(request_id, None)
+
+
+async def _handle_with_llm(ws: WebSocketServerProtocol, message_id: str, user_input: str):
+    """使用 LLM 处理消息（支持 Function Calling）"""
+    # 获取或创建对话历史
+    if message_id not in conversation_history:
+        conversation_history[message_id] = []
+
+    history = conversation_history[message_id]
+
+    # 构建系统提示词
+    locale = user_settings.get("locale", "zh-CN")
+    system_prompt = build_system_prompt(locale)
+
+    # 组装消息
+    messages = [{"role": "system", "content": system_prompt}]
+    messages.extend(history)
+    messages.append({"role": "user", "content": user_input})
+
+    try:
+        # 调用 LLM（带 tools）
+        llm_result = await model_router.chat(
+            messages, user_settings, stream=False, tools=TOOLS,
+        )
+
+        # 解析 LLM 返回
+        if isinstance(llm_result, dict) and llm_result.get("tool_calls"):
+            # LLM 要求调用工具
+            await _handle_llm_tool_calls(ws, message_id, user_input, llm_result, history)
+        else:
+            # 纯文本回复
+            reply = llm_result if isinstance(llm_result, str) else str(llm_result)
+            await send_text_response(ws, message_id, reply)
+            # 更新对话历史
+            history.append({"role": "user", "content": user_input})
+            history.append({"role": "assistant", "content": reply})
+            _trim_history(history)
+
+    except Exception as e:
+        logger.error(f"LLM 调用失败: {e}", exc_info=True)
+        # 降级：回退到规则匹配的 unknown 提示
         await send_text_response(ws, message_id,
-            f"抱歉，我不太理解「{content}」的意思。\n\n"
-            "你可以试试：\n"
+            f"抱歉，AI 模型暂时不可用（{type(e).__name__}）。\n\n"
+            "你可以试试以下命令：\n"
             "• 扫描桌面文件\n"
             "• 打开记事本\n"
             "• 查看系统信息\n"
-            "• 列出运行中的应用\n"
-            "• 打开设置\n"
-            "• 把语言改成中文\n"
-            "• 我现在的设置是什么"
+            "• 打开设置"
         )
-        return
 
-    # 打开设置面板
-    if result["intent"] == "settings_open":
-        await ws.send(json.dumps({
-            "type": "agent_command",
-            "command": "open-settings",
-        }))
-        await send_text_response(ws, message_id, "好的，已为你打开设置面板。")
-        return
 
-    # 关闭设置面板
-    if result["intent"] == "settings_close":
-        await ws.send(json.dumps({
-            "type": "agent_command",
-            "command": "close-settings",
-        }))
-        await send_text_response(ws, message_id, "设置面板已关闭。")
-        return
+async def _handle_llm_tool_calls(
+    ws: WebSocketServerProtocol, message_id: str,
+    user_input: str, llm_result: dict, history: list[dict],
+):
+    """处理 LLM 返回的 tool_calls"""
+    tool_calls = llm_result["tool_calls"]
+    assistant_content = llm_result.get("content") or ""
 
-    # 设置查询
-    if result["intent"] == "settings_query":
+    # 如果 LLM 有文本回复，先发送
+    if assistant_content:
+        await send_text_response(ws, message_id, assistant_content)
+
+    # 更新对话历史
+    history.append({"role": "user", "content": user_input})
+    history.append({
+        "role": "assistant",
+        "content": assistant_content,
+        "tool_calls": [
+            {"id": tc["id"], "type": "function", "function": {"name": tc["name"], "arguments": tc["arguments"]}}
+            for tc in tool_calls
+        ],
+    })
+
+    # 执行每个 tool_call
+    for tc in tool_calls:
+        tool_name = tc["name"]
+        try:
+            args = json.loads(tc["arguments"]) if isinstance(tc["arguments"], str) else tc["arguments"]
+        except json.JSONDecodeError:
+            args = {}
+
+        logger.info(f"执行工具: {tool_name}({args})")
+
+        # 根据工具名执行对应操作
+        tool_result = await _execute_tool(tool_name, args, ws, message_id)
+
+        # 将工具结果加入对话历史
+        history.append({
+            "role": "tool",
+            "tool_call_id": tc["id"],
+            "content": json.dumps(tool_result, ensure_ascii=False) if isinstance(tool_result, dict) else str(tool_result),
+        })
+
+    _trim_history(history)
+
+    # 如果有多个 tool_call，让 LLM 基于结果生成最终回复
+    if len(tool_calls) > 1 or tool_calls[0]["name"] == "execute_capability":
+        await _llm_summarize_results(ws, message_id, history)
+
+
+async def _execute_tool(tool_name: str, args: dict, ws: WebSocketServerProtocol, message_id: str) -> dict:
+    """执行单个工具调用"""
+    if tool_name == "settings_query":
         request_id = str(uuid.uuid4())[:8]
         future = asyncio.get_event_loop().create_future()
         pending_results[request_id] = future
-
-        await ws.send(json.dumps({
-            "type": "settings_query",
-            "request_id": request_id,
-        }))
-
+        await ws.send(json.dumps({"type": "settings_query", "request_id": request_id}))
         try:
-            query_result = await asyncio.wait_for(future, timeout=10.0)
-            reply = format_settings_reply(query_result)
-            await send_text_response(ws, message_id, reply)
+            result = await asyncio.wait_for(future, timeout=10.0)
+            return {"success": True, "settings": result.get("settings", [])}
         except asyncio.TimeoutError:
-            await send_text_response(ws, message_id, "获取设置超时，请重试。")
+            return {"success": False, "error": "查询超时"}
         finally:
             pending_results.pop(request_id, None)
-        return
 
-    # 设置修改
-    if result["intent"] == "settings_change":
-        changes = result.get("settings_changes", [])
+    elif tool_name == "settings_change":
+        changes = args.get("changes", [])
         if not changes:
-            await send_text_response(ws, message_id, "请告诉我你想修改什么设置。")
-            return
-
-        # 先校验
+            return {"success": False, "error": "未提供修改内容"}
         change_result = handle_settings_change(changes)
-
-        # 检查是否全部需要确认
-        needs_confirm = [r for r in change_result["results"] if r.get("needs_confirm")]
-        ready_changes = [r for r in change_result["results"] if r.get("success")]
-
-        if needs_confirm:
-            # 告诉用户需要确认
-            confirm_msg = "\n".join(r["message"] for r in needs_confirm)
-            await send_text_response(ws, message_id, f"需要你的确认：\n{confirm_msg}")
-            # TODO: 等待用户确认后重新执行
-            return
-
-        if ready_changes:
-            # 发给前端应用
-            request_id = str(uuid.uuid4())[:8]
-            future = asyncio.get_event_loop().create_future()
-            pending_results[request_id] = future
-
-            await ws.send(json.dumps({
-                "type": "settings_change",
-                "request_id": request_id,
-                "changes": [{"key": r["key"], "value": r["value"]} for r in ready_changes],
-            }))
-
-            try:
-                apply_result = await asyncio.wait_for(future, timeout=10.0)
-                reply = format_change_reply(apply_result)
-                await send_text_response(ws, message_id, reply)
-            except asyncio.TimeoutError:
-                await send_text_response(ws, message_id, "设置修改超时，请重试。")
-            finally:
-                pending_results.pop(request_id, None)
-            return
-
-        # 有错误
-        reply = format_change_reply(change_result)
-        await send_text_response(ws, message_id, reply)
-        return
-
-    # 先发送 Agent 的确认回复
-    if result["reply"]:
-        await send_text_response(ws, message_id, result["reply"])
-
-    # 发送 capability 请求给前端执行
-    if result["capabilities"]:
+        ready = [r for r in change_result["results"] if r.get("success")]
+        if not ready:
+            return {"success": False, "results": change_result["results"]}
+        # 发给前端应用
         request_id = str(uuid.uuid4())[:8]
-        logger.info(f"发送 capability 请求: {request_id}, {len(result['capabilities'])} 个操作")
-
         future = asyncio.get_event_loop().create_future()
         pending_results[request_id] = future
+        await ws.send(json.dumps({
+            "type": "settings_change",
+            "request_id": request_id,
+            "changes": [{"key": r["key"], "value": r["value"]} for r in ready],
+        }))
+        try:
+            apply_result = await asyncio.wait_for(future, timeout=10.0)
+            return {"success": True, "applied": ready, "result": apply_result}
+        except asyncio.TimeoutError:
+            return {"success": False, "error": "修改超时"}
+        finally:
+            pending_results.pop(request_id, None)
 
+    elif tool_name == "execute_capability":
+        cap_type = args.get("capability_type", "")
+        payload = args.get("payload", {})
+        cap_id = str(uuid.uuid4())[:8]
+        capability = {"type": cap_type, "payload": payload}
+
+        future = asyncio.get_event_loop().create_future()
+        pending_results[cap_id] = future
         await ws.send(json.dumps({
             "type": "capability_request",
-            "request_id": request_id,
-            "capabilities": result["capabilities"],
+            "request_id": cap_id,
+            "capabilities": [{"id": cap_id, "capability": capability}],
         }))
-
         try:
-            cap_results = await asyncio.wait_for(future, timeout=30.0)
-            reply = format_capability_results(result["intent"], cap_results)
-            await send_text_response(ws, message_id, reply)
+            results = await asyncio.wait_for(future, timeout=30.0)
+            return {"success": True, "results": results}
         except asyncio.TimeoutError:
-            await send_text_response(ws, message_id, "操作执行超时，请重试。")
+            return {"success": False, "error": "操作超时"}
         finally:
-            pending_results.pop(request_id, None)
+            pending_results.pop(cap_id, None)
+
+    elif tool_name == "open_settings":
+        await ws.send(json.dumps({"type": "agent_command", "command": "open-settings"}))
+        return {"success": True, "message": "设置面板已打开"}
+
+    elif tool_name == "close_settings":
+        await ws.send(json.dumps({"type": "agent_command", "command": "close-settings"}))
+        return {"success": True, "message": "设置面板已关闭"}
+
+    return {"success": False, "error": f"未知工具: {tool_name}"}
+
+
+async def _llm_summarize_results(ws: WebSocketServerProtocol, message_id: str, history: list[dict]):
+    """让 LLM 基于工具执行结果生成自然语言回复"""
+    locale = user_settings.get("locale", "zh-CN")
+    system_prompt = build_system_prompt(locale)
+    messages = [{"role": "system", "content": system_prompt}]
+    messages.extend(history)
+    messages.append({"role": "user", "content": "请根据以上工具执行结果，用简洁的中文回复用户。"})
+
+    try:
+        reply = await model_router.chat(messages, user_settings, stream=False)
+        if isinstance(reply, str) and reply:
+            await send_text_response(ws, message_id, reply)
+            history.append({"role": "assistant", "content": reply})
+    except Exception as e:
+        logger.warning(f"LLM 总结失败: {e}")
+
+
+def _trim_history(history: list[dict]):
+    """裁剪对话历史，保留最近 N 条"""
+    while len(history) > MAX_HISTORY:
+        history.pop(0)
 
 
 async def handle_capability_result(ws: WebSocketServerProtocol, data: dict):
