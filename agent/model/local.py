@@ -1,7 +1,7 @@
 """本地模型接口 — Ollama 连接管理、模型列表、健康检查"""
 
+import json
 import logging
-from typing import Any
 
 import httpx
 
@@ -87,7 +87,6 @@ class LocalLLM:
                     last_status = ""
                     async for line in resp.aiter_lines():
                         if line:
-                            import json
                             try:
                                 progress = json.loads(line)
                                 last_status = progress.get("status", "")
