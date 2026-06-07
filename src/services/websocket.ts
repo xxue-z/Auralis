@@ -1,5 +1,4 @@
 import { useAgentStore } from "../stores/agentStore";
-import { useChatStore } from "../stores/chatStore";
 
 type MessageHandler = (data: any) => void;
 
@@ -26,6 +25,11 @@ class WebSocketService {
       try {
         const data = JSON.parse(event.data);
         this.emit(data.type, data);
+
+        // 更新角色状态
+        if (data.type === "agent_response" && data.persona_state) {
+          useAgentStore.getState().setPersonaState(data.persona_state);
+        }
       } catch (e) {
         console.error("[WebSocket] Failed to parse message:", e);
       }
