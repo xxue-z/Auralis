@@ -1,0 +1,27 @@
+{
+  "app": {
+    "name": "Auralis",
+    "tagline": "你的桌面精灵操作系统智能体"
+  },
+  "chat": {
+    "placeholder": "输入消息...",
+    "send": "发送",
+    "thinking": "思考中...",
+    "error": "出了点问题，请重试。",
+    "connecting": "正在连接 Agent...",
+    "disconnected": "Agent 已断开"
+  },
+  "settings": {
+    "title": "设置",
+    "language": {
+      "label": "语言",
+      "description": "选择你偏好的语言"
+    }
+  },
+  "character": {
+    "greeting": "你好！我是 Auralis，你的桌面精灵。有什么可以帮你的吗？",
+    "idle": "等待你的指令...",
+    "thinking": "让我想想...",
+    "error": "哎呀，出了点问题。"
+  }
+}

@@ -1,0 +1,166 @@
+{
+    "version": "1.0.0",
+    "updated_at": "2026-05-29T15:00:00Z",
+    "vendors": [
+        {
+            "vendor": "小米 Token 版",
+            "description": "小米 AI 开放平台按量付费模式，提前购买 token 后使用",
+            "supported_modes": [
+                "openai"
+            ],
+            "base_urls": {
+                "openai": "https://token-plan-cn.xiaomimimo.com/v1"
+            },
+            "key_url": "https://platform.xiaomimimo.com/console/plan-manage",
+            "models": [
+                "mimo-v2.5",
+                "mimo-v2.5-pro"
+            ]
+        },
+        {
+            "vendor": "小米订阅版",
+            "description": "小米 AI 开放平台包月订阅模式，订阅后解锁多款核心模型",
+            "supported_modes": [
+                "openai",
+                "anthropic"
+            ],
+            "base_urls": {
+                "openai": "https://token-plan-cn.xiaomimimo.com/v1",
+                "anthropic": "https://token-plan-cn.xiaomimimo.com/anthropic"
+            },
+            "key_url": "https://platform.xiaomimimo.com/console/plan-manage",
+            "models": [
+                "mimo-v2.5-pro",
+                "mimo-v2.5",
+                "mimo-v2.5-flash",
+                "mimo-v2.5-tts",
+                "mimo-v2.5-tts-voiceclone",
+                "mimo-v2.5-tts-voicedesign"
+            ]
+        },
+        {
+            "vendor": "DeepSeek",
+            "description": "深度求索大模型 API，兼容 OpenAI 与 Anthropic 协议",
+            "supported_modes": [
+                "openai",
+                "anthropic"
+            ],
+            "base_urls": {
+                "openai": "https://api.deepseek.com",
+                "anthropic": "https://api.deepseek.com/anthropic"
+            },
+            "key_url": "https://platform.deepseek.com/api_keys",
+            "models": [
+                "deepseek-v4-flash",
+                "deepseek-v4-pro"
+            ]
+        },
+        {
+            "vendor": "BigModel (智谱AI)",
+            "description": "智谱AI 大模型开放平台，提供 GLM 系列模型",
+            "supported_modes": [
+                "openai"
+            ],
+            "base_urls": {
+                "openai": "https://open.bigmodel.cn/api/paas/v4"
+            },
+            "key_url": "https://open.bigmodel.cn/usercenter/apikeys",
+            "models": [
+                "glm-5.1",
+                "glm-5",
+                "glm-5-turbo",
+                "glm-4.7",
+                "glm-4.7-flashx",
+                "glm-4.6"
+            ]
+        },
+        {
+            "vendor": "OpenAI",
+            "description": "OpenAI 官方 API，提供 GPT 系列模型",
+            "supported_modes": [
+                "openai"
+            ],
+            "base_urls": {
+                "openai": "https://api.openai.com/v1"
+            },
+            "key_url": "https://platform.openai.com/api-keys",
+            "models": [
+                "gpt-5.1",
+                "gpt-5-mini",
+                "gpt-4.1",
+                "gpt-4.1-mini",
+                "gpt-4.1-nano",
+                "gpt-4o",
+                "gpt-4o-mini",
+                "gpt-oss-120b",
+                "gpt-oss-20b"
+            ]
+        },
+        {
+            "vendor": "Claude (Anthropic)",
+            "description": "Anthropic 官方 Claude API，支持高级推理和多模态",
+            "supported_modes": [
+                "anthropic"
+            ],
+            "base_urls": {
+                "anthropic": "https://api.anthropic.com/v1"
+            },
+            "key_url": "https://console.anthropic.com/settings/keys",
+            "models": [
+                "claude-opus-4.7",
+                "claude-sonnet-4.5",
+                "claude-opus-4.1",
+                "claude-sonnet-4",
+                "claude-opus-4",
+                "claude-haiku-4.5"
+            ]
+        },
+        {
+            "vendor": "OpenRouter",
+            "description": "OpenRouter 聚合网关，统一接入多家模型厂商",
+            "supported_modes": [
+                "openai"
+            ],
+            "base_urls": {
+                "openai": "https://openrouter.ai/api/v1"
+            },
+            "key_url": "https://openrouter.ai/settings/keys",
+            "models": [
+                "openrouter/free",
+                "openrouter/auto",
+                "openrouter/auto-long",
+                "google/gemini-3.1-pro-preview",
+                "meta-llama/llama-4-turbo",
+                "microsoft/phi-4-multimodal",
+                "z-ai/glm-5.1",
+                "nvidia/nemotron-3-super",
+                "poolside/laguna-m.1",
+                "openai/gpt-oss-120b"
+            ]
+        },
+        {
+            "vendor": "Ollama",
+            "description": "Ollama 本地模型运行框架，支持本地部署 LLM",
+            "supported_modes": [
+                "openai"
+            ],
+            "base_urls": {
+                "openai": "http://localhost:11434/v1"
+            },
+            "key_url": "https://ollama.com/settings/keys",
+            "models": [
+                "llama3.3",
+                "llama3.2",
+                "llama3.1",
+                "mistral",
+                "phi4",
+                "phi3",
+                "deepseek-r1",
+                "qwen2.5",
+                "gemma2",
+                "codellama",
+                "nomic-embed-text"
+            ]
+        }
+    ]
+}

@@ -1,0 +1,42 @@
+.codegraph/
+.docs/
+.claude/
+
+# Node
+node_modules/
+dist/
+.vite/
+
+# Rust
+src-tauri/target/
+
+# Python
+agent/.venv/
+agent/__pycache__/
+agent/**/__pycache__/
+*.pyc
+.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build
+*.exe
+*.msi
+*.dmg
+*.AppImage
+
+# Tauri
+src-tauri/gen/
+
+# Local models
+models/*.bin
+models/*.gguf
+/package-lock.json
