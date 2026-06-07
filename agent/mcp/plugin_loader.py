@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from mcp.router import MCPRouter, PluginExecutor
+from mcp.router import MCPRouter
 from mcp.schema import MCPRequest, MCPResponse
 
 logger = logging.getLogger("auralis.mcp.loader")
