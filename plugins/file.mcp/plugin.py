@@ -1,6 +1,5 @@
 """file.mcp — 文件系统操作插件"""
 
-import os
 import shutil
 from pathlib import Path
 
