@@ -2,8 +2,10 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { LanguageSelector } from "./LanguageSelector";
 import { ModelConfig } from "./ModelConfig";
+import { ThemeConfig } from "./ThemeConfig";
+import { VoiceConfig } from "./VoiceConfig";
 
-type Section = "general" | "model" | null;
+type Section = "general" | "model" | "theme" | "voice" | null;
 
 interface Props {
   onClose: () => void;
@@ -40,11 +42,29 @@ export function SettingsPanel({ onClose }: Props) {
 
           {/* 模型配置 */}
           <SettingsSection
-            title={`🤖 AI 模型`}
+            title={`🤖 ${t("settings.model")}`}
             isOpen={section === "model"}
             onToggle={() => setSection(section === "model" ? null : "model")}
           >
             <ModelConfig />
+          </SettingsSection>
+
+          {/* 主题外观 */}
+          <SettingsSection
+            title={`🎨 ${t("settings.theme")}`}
+            isOpen={section === "theme"}
+            onToggle={() => setSection(section === "theme" ? null : "theme")}
+          >
+            <ThemeConfig />
+          </SettingsSection>
+
+          {/* 语音设置 */}
+          <SettingsSection
+            title="🎤 语音"
+            isOpen={section === "voice"}
+            onToggle={() => setSection(section === "voice" ? null : "voice")}
+          >
+            <VoiceConfig />
           </SettingsSection>
         </div>
       </div>

@@ -16,7 +16,9 @@
     "language": {
       "label": "Language",
       "description": "Choose your preferred language"
-    }
+    },
+    "model": "AI Model",
+    "theme": "Appearance"
   },
   "character": {
     "greeting": "Hello! I'm Auralis, your desktop fairy. How can I help you?",

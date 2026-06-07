@@ -8,10 +8,15 @@
   box-sizing: border-box;
 }
 
+html, body, #root {
+  background: transparent !important;
+  overflow: hidden;
+  width: 100%;
+  height: 100%;
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  background: transparent;
-  overflow: hidden;
   -webkit-app-region: no-drag;
 }
 

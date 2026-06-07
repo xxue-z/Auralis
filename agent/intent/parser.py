@@ -65,16 +65,33 @@ class IntentParser:
         "vs code": "code",
     }
 
+    # 复合短语优先匹配（避免"打开设置"被拆成"打开"→app_launch）
+    COMPOUND_PHRASES = {
+        ("打开设置", "打开配置", "显示设置", "显示配置", "设置面板", "打开偏好"): "settings_open",
+        ("打开文件", "读取文件"): "file_read",
+        ("关闭设置", "关闭配置"): "settings_close",
+    }
+
     def parse(self, user_input: str) -> dict:
         """解析用户输入，返回意图和生成的 Capability 列表"""
         text = user_input.strip().lower()
 
-        # 先检查是否是设置修改（需要同时匹配动作+设置项）
+        # 1. 优先匹配复合短语
+        for phrases, intent in self.COMPOUND_PHRASES.items():
+            for phrase in phrases:
+                if phrase in text:
+                    return {
+                        "intent": intent,
+                        "capabilities": [],
+                        "reply": None,
+                    }
+
+        # 2. 检查是否是设置修改
         settings_change = self._match_settings_change(text)
         if settings_change:
             return settings_change
 
-        # 匹配其他意图
+        # 3. 匹配其他意图
         intent = self._match_intent(text)
         if not intent:
             return {"intent": "unknown", "capabilities": [], "reply": None}

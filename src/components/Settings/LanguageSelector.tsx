@@ -8,15 +8,15 @@ const LANGUAGES = [
 
 export function LanguageSelector() {
   const { t } = useTranslation();
-  const locale = useSettingsStore((s) => s.locale);
-  const setLocale = useSettingsStore((s) => s.setLocale);
+  const locale = useSettingsStore((s) => s.settings.locale);
+  const setSetting = useSettingsStore((s) => s.setSetting);
 
   return (
     <div className="flex items-center gap-2">
       <label className="text-xs text-gray-500">{t("settings.language.label")}:</label>
       <select
         value={locale}
-        onChange={(e) => setLocale(e.target.value)}
+        onChange={(e) => setSetting("locale", e.target.value)}
         className="text-xs px-2 py-1 border border-gray-200 rounded bg-white/80
                    focus:outline-none focus:border-primary-400"
       >

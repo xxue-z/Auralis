@@ -11,6 +11,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::greet,
             commands::execute_capability,
+            commands::resize_window,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

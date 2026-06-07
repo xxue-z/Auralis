@@ -65,6 +65,67 @@ SETTINGS_SCHEMA: dict[str, dict[str, Any]] = {
         "label": "主题", "description": "应用颜色主题",
         "ai_editable": True, "confirm_required": False,
     },
+    "appearance.chat_color": {
+        "type": "string", "default": "#0ea5e9",
+        "label": "聊天主题色", "description": "聊天框和按钮的主色调",
+        "ai_editable": True, "confirm_required": False,
+    },
+    "appearance.chat_opacity": {
+        "type": "number", "default": 0.9, "min": 0.3, "max": 1.0, "step": 0.05,
+        "label": "聊天透明度", "description": "聊天框背景透明度。0.3=透明，1.0=不透明",
+        "ai_editable": True, "confirm_required": False,
+    },
+    "appearance.sprite_size": {
+        "type": "number", "default": 96, "min": 64, "max": 200, "step": 8,
+        "label": "精灵大小", "description": "桌面精灵的显示尺寸（像素）",
+        "ai_editable": True, "confirm_required": False,
+    },
+    "appearance.sprite_style": {
+        "type": "string", "default": "",
+        "label": "精灵风格", "description": "精灵的视觉风格（neko/kitsune/fairy/android/blossom）",
+        "ai_editable": True, "confirm_required": False,
+    },
+
+    # ============ 引导流程 ============
+    "onboarding.complete": {
+        "type": "boolean", "default": False,
+        "label": "引导完成", "description": "是否已完成首次启动引导",
+        "ai_editable": False, "confirm_required": False,
+    },
+
+    # ============ 语音配置 ============
+    "voice.enabled": {
+        "type": "boolean", "default": False,
+        "label": "启用语音", "description": "启用语音回答功能",
+        "ai_editable": True, "confirm_required": False,
+    },
+    "voice.preset_id": {
+        "type": "enum", "default": "sweet_female",
+        "options": ["sweet_female", "cute_female", "cool_female", "gentle_male", "energetic_male", "neutral", "custom"],
+        "label": "音线", "description": "精灵的语音音色",
+        "ai_editable": True, "confirm_required": False,
+    },
+    "voice.provider": {
+        "type": "enum", "default": "edge-tts",
+        "options": ["edge-tts", "openai", "piper"],
+        "label": "TTS 引擎", "description": "语音合成引擎（edge-tts 免费，openai 音质最好）",
+        "ai_editable": True, "confirm_required": True,
+    },
+    "voice.speed": {
+        "type": "number", "default": 1.0, "min": 0.5, "max": 2.0, "step": 0.1,
+        "label": "语速", "description": "语音输出的语速",
+        "ai_editable": True, "confirm_required": False,
+    },
+    "voice.pitch": {
+        "type": "number", "default": 1.0, "min": 0.5, "max": 2.0, "step": 0.1,
+        "label": "音调", "description": "语音输出的音调",
+        "ai_editable": True, "confirm_required": False,
+    },
+    "voice.custom_clone_id": {
+        "type": "string", "default": "",
+        "label": "克隆音色 ID", "description": "用户上传音频克隆的音色标识",
+        "ai_editable": False, "confirm_required": False,
+    },
 
     # ============ 云端模型配置 ============
     "model.cloud.enabled": {

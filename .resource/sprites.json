@@ -1,0 +1,130 @@
+{
+  "version": "1.0.0",
+  "styles": [
+    {
+      "id": "neko",
+      "name": "猫娘",
+      "name_en": "Neko",
+      "description": "温柔可爱的猫耳少女",
+      "preview": "resources/characters/neko/preview.png",
+      "color_default": "#ec4899",
+      "default_voice": "cute_female"
+    },
+    {
+      "id": "kitsune",
+      "name": "狐仙",
+      "name_en": "Kitsune",
+      "description": "古灵精怪的狐耳仙子",
+      "preview": "resources/characters/kitsune/preview.png",
+      "color_default": "#f97316",
+      "default_voice": "energetic_male"
+    },
+    {
+      "id": "fairy",
+      "name": "精灵",
+      "name_en": "Fairy",
+      "description": "优雅空灵的翅膀精灵",
+      "preview": "resources/characters/fairy/preview.png",
+      "color_default": "#a855f7",
+      "default_voice": "cool_female"
+    },
+    {
+      "id": "android",
+      "name": "机器人",
+      "name_en": "Android",
+      "description": "冷静理性的机械伙伴",
+      "preview": "resources/characters/android/preview.png",
+      "color_default": "#3b82f6",
+      "default_voice": "neutral"
+    },
+    {
+      "id": "blossom",
+      "name": "花灵",
+      "name_en": "Blossom",
+      "description": "甜美温暖的花之精灵",
+      "preview": "resources/characters/blossom/preview.png",
+      "color_default": "#ec4899",
+      "default_voice": "sweet_female"
+    }
+  ],
+  "voices": [
+    {
+      "id": "sweet_female",
+      "name": "甜美女声",
+      "name_en": "Sweet",
+      "description": "温柔甜美的女性声音",
+      "preview_text": "你好呀！我是你的桌面精灵，有什么可以帮你的吗？",
+      "tts_config": {
+        "provider": "edge-tts",
+        "voice_id": "zh-CN-XiaoyiNeural",
+        "speed": 1.0,
+        "pitch": 1.1
+      }
+    },
+    {
+      "id": "cute_female",
+      "name": "软萌女声",
+      "name_en": "Cute",
+      "description": "可爱软萌的少女声音",
+      "preview_text": "嘻嘻，你好！我是 Auralis，你的小精灵～",
+      "tts_config": {
+        "provider": "edge-tts",
+        "voice_id": "zh-CN-XiaohanNeural",
+        "speed": 1.1,
+        "pitch": 1.2
+      }
+    },
+    {
+      "id": "cool_female",
+      "name": "清冷女声",
+      "name_en": "Cool",
+      "description": "冷静优雅的女性声音",
+      "preview_text": "你好，我是 Auralis。有什么需要我处理的吗？",
+      "tts_config": {
+        "provider": "edge-tts",
+        "voice_id": "zh-CN-XiaomengNeural",
+        "speed": 0.95,
+        "pitch": 1.0
+      }
+    },
+    {
+      "id": "gentle_male",
+      "name": "温柔男声",
+      "name_en": "Gentle",
+      "description": "温和稳重的男性声音",
+      "preview_text": "你好，我是 Auralis。随时为你效劳。",
+      "tts_config": {
+        "provider": "edge-tts",
+        "voice_id": "zh-CN-YunxiNeural",
+        "speed": 0.95,
+        "pitch": 0.9
+      }
+    },
+    {
+      "id": "energetic_male",
+      "name": "活泼男声",
+      "name_en": "Energetic",
+      "description": "充满活力的年轻男性声音",
+      "preview_text": "嘿！我是 Auralis，今天有什么有趣的事？",
+      "tts_config": {
+        "provider": "edge-tts",
+        "voice_id": "zh-CN-YunjianNeural",
+        "speed": 1.1,
+        "pitch": 1.0
+      }
+    },
+    {
+      "id": "neutral",
+      "name": "中性音",
+      "name_en": "Neutral",
+      "description": "平和中性的声音",
+      "preview_text": "你好，我是 Auralis，你的智能助手。",
+      "tts_config": {
+        "provider": "edge-tts",
+        "voice_id": "zh-CN-XiaoxiaoNeural",
+        "speed": 1.0,
+        "pitch": 1.0
+      }
+    }
+  ]
+}

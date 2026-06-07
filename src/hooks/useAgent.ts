@@ -1,6 +1,7 @@
 import { useEffect, useCallback } from "react";
 import { wsService } from "../services/websocket";
 import { executeCapability } from "../services/tauri-api";
+import { playAudio } from "../services/audio";
 import { useAgentStore } from "../stores/agentStore";
 import { useChatStore } from "../stores/chatStore";
 import { useConfirmStore } from "../stores/confirmStore";
@@ -132,12 +133,21 @@ export function useAgent() {
         try {
           let finalValue = change.value;
 
-          // 处理 "increase"/"decrease"（数值类设置微调）
+          // 处理 "increase"/"decrease"（数值类设置微调，范围从默认值推断）
           if (finalValue === "increase" || finalValue === "decrease") {
             const current = store.getSetting(change.key);
             if (typeof current === "number") {
               const delta = finalValue === "increase" ? 0.1 : -0.1;
-              finalValue = Math.min(1.0, Math.max(0.0, Math.round((current + delta) * 10) / 10));
+              // 根据设置类型确定范围
+              let min = 0.0, max = 1.0;
+              if (change.key.includes("speed") || change.key.includes("pitch")) {
+                min = 0.5; max = 2.0;
+              } else if (change.key.includes("size")) {
+                min = 64; max = 200;
+              } else if (change.key.includes("opacity")) {
+                min = 0.3; max = 1.0;
+              }
+              finalValue = Math.min(max, Math.max(min, Math.round((current + delta) * 10) / 10));
             }
           }
 
@@ -155,16 +165,35 @@ export function useAgent() {
       });
     };
 
+    // 处理 Agent 发来的指令（如打开设置）
+    const handleAgentCommand = (data: any) => {
+      const command = data.command;
+      if (command === "open-settings") {
+        window.dispatchEvent(new CustomEvent("agent-command", { detail: "open-settings" }));
+      }
+    };
+
+    // 处理 Agent 发来的音频
+    const handleAgentAudio = (data: any) => {
+      if (data.audio) {
+        playAudio(data.audio);
+      }
+    };
+
     wsService.on("agent_response", handleAgentResponse);
     wsService.on("capability_request", handleCapabilityRequest);
     wsService.on("settings_query", handleSettingsQuery);
     wsService.on("settings_change", handleSettingsChange);
+    wsService.on("agent_command", handleAgentCommand);
+    wsService.on("agent_audio", handleAgentAudio);
 
     return () => {
       wsService.off("agent_response", handleAgentResponse);
       wsService.off("capability_request", handleCapabilityRequest);
       wsService.off("settings_query", handleSettingsQuery);
       wsService.off("settings_change", handleSettingsChange);
+      wsService.off("agent_command", handleAgentCommand);
+      wsService.off("agent_audio", handleAgentAudio);
     };
   }, [addMessage, updateMessage, appendToMessage, setThinking]);
 
@@ -193,6 +222,21 @@ export function useAgent() {
 
   const disconnect = useCallback(() => {
     wsService.disconnect();
+  }, []);
+
+  // 连接成功后同步设置到 Agent
+  useEffect(() => {
+    const handleConnect = () => {
+      const allSettings = useSettingsStore.getState().getAllSettings();
+      wsService.send({
+        type: "settings_update",
+        settings: allSettings,
+      });
+    };
+    const unsubscribe = useAgentStore.subscribe((state) => {
+      if (state.status === "connected") handleConnect();
+    });
+    return unsubscribe; // 清理订阅
   }, []);
 
   return { sendMessage, connect, disconnect };

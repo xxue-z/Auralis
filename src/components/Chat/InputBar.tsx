@@ -4,9 +4,10 @@ import { useTranslation } from "react-i18next";
 interface Props {
   onSend: (message: string) => void;
   disabled?: boolean;
+  chatColor?: string;
 }
 
-export function InputBar({ onSend, disabled }: Props) {
+export function InputBar({ onSend, disabled, chatColor = "#0ea5e9" }: Props) {
   const { t } = useTranslation();
   const [input, setInput] = useState("");
 
@@ -34,15 +35,15 @@ export function InputBar({ onSend, disabled }: Props) {
         placeholder={t("chat.placeholder")}
         disabled={disabled}
         className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-full
-                   focus:outline-none focus:border-primary-400 bg-white/80
-                   disabled:opacity-50"
+                   focus:outline-none bg-white/80 disabled:opacity-50"
+        style={{ outlineColor: chatColor }}
       />
       <button
         onClick={handleSend}
         disabled={disabled || !input.trim()}
-        className="px-4 py-2 text-sm font-medium text-white bg-primary-500
-                   rounded-full hover:bg-primary-600 disabled:opacity-50
-                   disabled:cursor-not-allowed transition-colors"
+        className="px-4 py-2 text-sm font-medium text-white rounded-full
+                   hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        style={{ background: chatColor }}
       >
         {t("chat.send")}
       </button>

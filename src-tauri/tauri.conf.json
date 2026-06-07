@@ -13,13 +13,14 @@
       {
         "label": "main",
         "title": "Auralis",
-        "width": 320,
-        "height": 450,
+        "width": 120,
+        "height": 160,
         "transparent": true,
         "decorations": false,
         "alwaysOnTop": true,
         "resizable": false,
-        "skipTaskbar": true
+        "skipTaskbar": true,
+        "shadow": false
       }
     ],
     "security": {

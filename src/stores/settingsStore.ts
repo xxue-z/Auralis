@@ -24,14 +24,24 @@ const DEFAULT_SETTINGS: Record<string, any> = {
   "model.local.model_id": "qwen2.5:1.5b",
   // 通用
   "model.auto_switch": true,
-  // 语音
-  "voice.enabled": false,
-  "voice.speed": 1.0,
   // 安全
   "security.confirm_destructive": true,
   "security.audit_log": true,
   // 外观
   "appearance.theme": "system",
+  "appearance.chat_color": "#0ea5e9",
+  "appearance.chat_opacity": 0.9,
+  "appearance.sprite_size": 96,
+  "appearance.sprite_style": "",
+  // 引导
+  "onboarding.complete": false,
+  // 语音
+  "voice.enabled": false,
+  "voice.preset_id": "sweet_female",
+  "voice.provider": "edge-tts",
+  "voice.speed": 1.0,
+  "voice.pitch": 1.0,
+  "voice.custom_clone_id": "",
 };
 
 // 从 localStorage 加载已保存的设置

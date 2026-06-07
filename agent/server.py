@@ -1,6 +1,7 @@
 """Auralis Agent WebSocket 服务端"""
 
 import asyncio
+import base64
 import json
 import logging
 import uuid
@@ -13,6 +14,9 @@ from settings.ai_handler import (
     handle_settings_query, handle_settings_change,
     format_settings_reply, format_change_reply,
 )
+from tts.router import TTSRouter
+from tts.clone import VoiceCloner
+from tts.generator import VoiceGenerator
 
 logging.basicConfig(
     level=logging.INFO,
@@ -22,9 +26,15 @@ logger = logging.getLogger("auralis.agent")
 
 connected_clients: set[WebSocketServerProtocol] = set()
 intent_parser = IntentParser()
+tts_router = TTSRouter()
+voice_cloner = VoiceCloner()
+voice_generator = VoiceGenerator()
 
 # 等待前端返回 capability 执行结果的回调
 pending_results: dict[str, asyncio.Future] = {}
+
+# 用户设置缓存（前端同步过来的）
+user_settings: dict = {}
 
 
 async def handle_message(ws: WebSocketServerProtocol, raw: str):
@@ -41,6 +51,14 @@ async def handle_message(ws: WebSocketServerProtocol, raw: str):
             await handle_settings_result(ws, data)
         elif msg_type == "settings_change_result":
             await handle_settings_result(ws, data)
+        elif msg_type == "settings_update":
+            # 前端同步设置到 Agent
+            user_settings.update(data.get("settings", {}))
+            logger.info(f"设置同步: {list(data.get('settings', {}).keys())}")
+        elif msg_type == "voice_clone":
+            await handle_voice_clone(ws, data)
+        elif msg_type == "voice_generate":
+            await handle_voice_generate(ws, data)
         elif msg_type == "confirm_response":
             await handle_confirm_response(ws, data)
         else:
@@ -68,9 +86,28 @@ async def handle_user_message(ws: WebSocketServerProtocol, data: dict):
             "• 打开记事本\n"
             "• 查看系统信息\n"
             "• 列出运行中的应用\n"
+            "• 打开设置\n"
             "• 把语言改成中文\n"
             "• 我现在的设置是什么"
         )
+        return
+
+    # 打开设置面板
+    if result["intent"] == "settings_open":
+        await ws.send(json.dumps({
+            "type": "agent_command",
+            "command": "open-settings",
+        }))
+        await send_text_response(ws, message_id, "好的，已为你打开设置面板。")
+        return
+
+    # 关闭设置面板
+    if result["intent"] == "settings_close":
+        await ws.send(json.dumps({
+            "type": "agent_command",
+            "command": "close-settings",
+        }))
+        await send_text_response(ws, message_id, "设置面板已关闭。")
         return
 
     # 设置查询
@@ -191,8 +228,87 @@ async def handle_settings_result(ws: WebSocketServerProtocol, data: dict):
         future.set_result(data)
 
 
+async def handle_voice_clone(ws: WebSocketServerProtocol, data: dict):
+    """处理声音克隆请求"""
+    try:
+        audio_b64 = data.get("audio")
+        filename = data.get("filename", "voice.wav")
+
+        if not audio_b64:
+            await ws.send(json.dumps({
+                "type": "voice_clone_result",
+                "success": False,
+                "error": "未提供音频数据",
+            }))
+            return
+
+        audio_data = base64.b64decode(audio_b64)
+        result = await voice_cloner.clone_from_audio(audio_data, filename, user_settings)
+
+        # 注册到 TTS Router
+        tts_router.register_custom_voice(result["voice_id"], result["config"])
+
+        await ws.send(json.dumps({
+            "type": "voice_clone_result",
+            "success": True,
+            "voice_id": result["voice_id"],
+            "name": result["name"],
+        }))
+    except Exception as e:
+        logger.error(f"声音克隆失败: {e}")
+        await ws.send(json.dumps({
+            "type": "voice_clone_result",
+            "success": False,
+            "error": str(e),
+        }))
+
+
+async def handle_voice_generate(ws: WebSocketServerProtocol, data: dict):
+    """处理 AI 音线生成请求"""
+    try:
+        description = data.get("description", "")
+
+        if not description:
+            await ws.send(json.dumps({
+                "type": "voice_generate_result",
+                "success": False,
+                "error": "请提供音线描述",
+            }))
+            return
+
+        result = voice_generator.generate(description)
+
+        # 注册到 TTS Router
+        tts_router.register_custom_voice(result["voice_id"], result["config"])
+
+        # 生成试听音频
+        preview_audio = await tts_router.synthesize(
+            result["config"].get("preview_text", "你好，这是试听音频。"),
+            result["voice_id"],
+            user_settings,
+        )
+
+        await ws.send(json.dumps({
+            "type": "voice_generate_result",
+            "success": True,
+            "voice_id": result["voice_id"],
+            "name": result["name"],
+            "description": result["description"],
+            "matched_features": result["matched_features"],
+            "preview_audio": base64.b64encode(preview_audio).decode() if preview_audio else None,
+        }))
+    except Exception as e:
+        logger.error(f"音线生成失败: {e}")
+        await ws.send(json.dumps({
+            "type": "voice_generate_result",
+            "success": False,
+            "error": str(e),
+        }))
+
+
 async def send_text_response(ws: WebSocketServerProtocol, message_id: str, text: str):
-    """发送流式文本回复"""
+    """发送流式文本回复，可选附带 TTS 音频"""
+    # 流式发送文本
     for i in range(0, len(text), 10):
         chunk = text[i:i+10]
         await ws.send(json.dumps({
@@ -204,6 +320,32 @@ async def send_text_response(ws: WebSocketServerProtocol, message_id: str, text:
         }))
         await asyncio.sleep(0.03)
 
+    # 文本发送完成
+    await ws.send(json.dumps({
+        "type": "agent_response",
+        "id": message_id,
+        "content": "",
+        "status": "done",
+        "persona_state": "speaking",
+    }))
+
+    # 如果启用了语音，生成 TTS 音频并发送（失败不影响文本回复）
+    if user_settings.get("voice.enabled", False):
+        try:
+            voice_id = user_settings.get("voice.preset_id", "sweet_female")
+            audio_data = await tts_router.synthesize(text, voice_id, user_settings)
+            if audio_data:
+                audio_b64 = base64.b64encode(audio_data).decode("utf-8")
+                await ws.send(json.dumps({
+                    "type": "agent_audio",
+                    "id": message_id,
+                    "audio": audio_b64,
+                    "persona_state": "speaking",
+                }))
+        except Exception as e:
+            logger.error(f"TTS 合成失败: {e}")
+
+    # 语音播放完毕，回到 idle
     await ws.send(json.dumps({
         "type": "agent_response",
         "id": message_id,

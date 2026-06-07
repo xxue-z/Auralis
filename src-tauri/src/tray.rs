@@ -30,9 +30,11 @@ pub fn setup(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
         &[&show_item, &hide_item, &settings_item, &quit_item],
     )?;
 
-    // 加载托盘图标（使用 tauri.conf.json 中配置的默认图标）
-    let icon = app.default_window_icon().cloned()
-        .ok_or("No default window icon configured")?;
+    // 加载托盘图标（缺失时不 panic，托盘仍可工作）
+    let icon = app.default_window_icon().cloned().unwrap_or_else(|| {
+        // 创建 1x1 透明像素作为 fallback
+        tauri::image::Image::new_owned(vec![0u8; 4], 1, 1)
+    });
 
     // 创建托盘图标
     let _tray = TrayIconBuilder::new()
