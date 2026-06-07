@@ -110,6 +110,9 @@ impl OSAdapterRouter {
             Capability::SystemInfo => "system.info".to_string(),
             Capability::SystemLock => "system.lock".to_string(),
             Capability::SystemShutdown { .. } => "system.shutdown".to_string(),
+            Capability::UIClick { .. } => "ui.click".to_string(),
+            Capability::UIType { .. } => "ui.type".to_string(),
+            Capability::UIScreenshot { .. } => "ui.screenshot".to_string(),
         }
     }
 }

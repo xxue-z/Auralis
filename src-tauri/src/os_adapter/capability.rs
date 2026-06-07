@@ -29,6 +29,21 @@ pub enum Capability {
     SystemLock,
     #[serde(rename = "system.shutdown")]
     SystemShutdown { delay: Option<u32> },
+    // UI 自动化
+    #[serde(rename = "ui.click")]
+    UIClick { x: i32, y: i32 },
+    #[serde(rename = "ui.type")]
+    UIType { text: String },
+    #[serde(rename = "ui.screenshot")]
+    UIScreenshot { region: Option<ScreenRegion> },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScreenRegion {
+    pub x: i32,
+    pub y: i32,
+    pub w: u32,
+    pub h: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

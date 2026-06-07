@@ -16,6 +16,8 @@ impl SafetyHooks {
             | Capability::AppLaunch { .. } | Capability::AppClose { .. } => RiskLevel::Medium,
             Capability::SystemLock => RiskLevel::High,
             Capability::SystemShutdown { .. } => RiskLevel::Critical,
+            Capability::UIClick { .. } | Capability::UIType { .. } => RiskLevel::Medium,
+            Capability::UIScreenshot { .. } => RiskLevel::Low,
         }
     }
 
