@@ -1,6 +1,7 @@
 """MCP 插件加载器 — 从 plugins/ 目录动态发现和加载插件"""
 
 import importlib
+import importlib.util
 import json
 import logging
 import sys

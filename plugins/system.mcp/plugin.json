@@ -1,0 +1,12 @@
+{
+  "name": "system.mcp",
+  "version": "1.0.0",
+  "description": "系统操作插件 — 系统信息查询、锁定、剪贴板操作",
+  "author": "Auralis Team",
+  "capabilities": [
+    "system.info",
+    "system.lock",
+    "system.clipboard.get",
+    "system.clipboard.set"
+  ]
+}
