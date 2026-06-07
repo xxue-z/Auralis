@@ -99,6 +99,29 @@ Agent Core (Python)
 
 ---
 
+## 启动方式
+
+### 一键启动（推荐）
+
+```powershell
+# 方式一：PowerShell
+.\scripts\dev.ps1
+
+# 方式二：双击 start.bat
+```
+
+### 分步启动
+
+```powershell
+# 终端 1：启动 Python Agent
+.\scripts\start-agent.ps1
+
+# 终端 2：启动 Tauri
+npm run tauri dev
+```
+
+---
+
 ## 开发约定
 
 1. **语言**：代码注释、commit message、文档均使用中文

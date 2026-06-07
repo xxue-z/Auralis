@@ -1,6 +1,5 @@
 use tauri::{
     AppHandle, Manager,
-    image::Image,
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
 };
@@ -31,13 +30,9 @@ pub fn setup(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
         &[&show_item, &hide_item, &settings_item, &quit_item],
     )?;
 
-    // 加载托盘图标
-    let icon = app.default_window_icon()
-        .cloned()
-        .unwrap_or_else(|| {
-            Image::from_bytes(include_bytes!("../icons/icon.png"))
-                .unwrap_or_else(|_| Image::from_bytes(&[0u8; 1]).unwrap())
-        });
+    // 加载托盘图标（使用 tauri.conf.json 中配置的默认图标）
+    let icon = app.default_window_icon().cloned()
+        .ok_or("No default window icon configured")?;
 
     // 创建托盘图标
     let _tray = TrayIconBuilder::new()

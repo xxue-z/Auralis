@@ -6,6 +6,7 @@
 node_modules/
 dist/
 .vite/
+package-lock.json
 
 # Rust
 src-tauri/target/
@@ -16,6 +17,7 @@ agent/__pycache__/
 agent/**/__pycache__/
 *.pyc
 .env
+agent/.env
 
 # IDE
 .vscode/
@@ -39,4 +41,3 @@ src-tauri/gen/
 # Local models
 models/*.bin
 models/*.gguf
-/package-lock.json

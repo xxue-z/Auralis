@@ -20,7 +20,7 @@ impl SafetyHooks {
     }
 
     pub fn check_delete_path(path: &str) -> Result<(), String> {
-        let path_lower = path.to_lowercase().replace('\', "/");
+        let path_lower = path.to_lowercase().replace('\\', "/");
         for pattern in &["c:/windows", "c:/program files", "c:/programdata"] {
             if path_lower.starts_with(pattern) {
                 return Err(format!("禁止删除系统目录: {}", path));
