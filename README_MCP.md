@@ -2,7 +2,7 @@
 
 > Auralis Model Capability Protocol 插件开发指南
 
-[返回项目介绍](README.md) | [English](README_en.md) | [MCP 协议规格](.docs/specs/v1.0.0/MCP-PROTOCOL-SPEC.md)
+[返回项目介绍](README.md) | [English](README_en.md) | 
 
 ---
 
@@ -46,8 +46,6 @@ MCP = Capability + Policy + Context + Execution Contract
                                      ↓
                               Audit Logger（审计日志）
 ```
-
-相关文档：[.docs/specs/v1.0.0/MCP-PROTOCOL-SPEC.md](.docs/specs/v1.0.0/MCP-PROTOCOL-SPEC.md)
 
 ---
 
@@ -468,6 +466,3 @@ python -m pytest test_my_plugin.py -v
 |------|------|
 | [README.md](README.md) | 项目介绍 |
 | [CLAUDE.md](CLAUDE.md) | 开发规范 |
-| [.docs/specs/v1.0.0/MCP-PROTOCOL-SPEC.md](.docs/specs/v1.0.0/MCP-PROTOCOL-SPEC.md) | MCP 协议规格 |
-| [.docs/specs/v1.0.0/ARCHITECTURE.md](.docs/specs/v1.0.0/ARCHITECTURE.md) | 系统架构 |
-| [.docs/specs/v1.0.0/OS-ADAPTER-SPEC.md](.docs/specs/v1.0.0/OS-ADAPTER-SPEC.md) | OS Adapter 规格 |

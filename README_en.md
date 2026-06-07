@@ -51,8 +51,6 @@ Auralis is an intelligent desktop assistant that interacts with users through na
 └─────────────────────────────────────────────┘
 ```
 
-For detailed architecture design, see: [.docs/specs/v1.0.0/ARCHITECTURE.md](.docs/specs/v1.0.0/ARCHITECTURE.md)
-
 ---
 
 ## Tech Stack
@@ -179,22 +177,6 @@ Auralis/
 
 ---
 
-## Documentation
-
-| Document | Description |
-|----------|-------------|
-| [CLAUDE.md](CLAUDE.md) | Project development conventions |
-| [.docs/specs/v1.0.0/PRD.md](.docs/specs/v1.0.0/PRD.md) | Product Requirements Document |
-| [.docs/specs/v1.0.0/ARCHITECTURE.md](.docs/specs/v1.0.0/ARCHITECTURE.md) | System Architecture Design |
-| [.docs/specs/v1.0.0/OS-ADAPTER-SPEC.md](.docs/specs/v1.0.0/OS-ADAPTER-SPEC.md) | OS Adapter Specification |
-| [.docs/specs/v1.0.0/MCP-PROTOCOL-SPEC.md](.docs/specs/v1.0.0/MCP-PROTOCOL-SPEC.md) | MCP Protocol Specification |
-| [.docs/specs/v1.0.0/PERSONA-MEMORY-SPEC.md](.docs/specs/v1.0.0/PERSONA-MEMORY-SPEC.md) | Persona & Memory Specification |
-| [.docs/specs/v1.0.0/I18N-SETTINGS-SPEC.md](.docs/specs/v1.0.0/I18N-SETTINGS-SPEC.md) | I18N & Settings Specification |
-| [.docs/specs/v1.0.0/MODEL-CONFIG-SPEC.md](.docs/specs/v1.0.0/MODEL-CONFIG-SPEC.md) | Model Configuration Specification |
-| [.docs/specs/v1.0.0/DEVELOPMENT-ROADMAP.md](.docs/specs/v1.0.0/DEVELOPMENT-ROADMAP.md) | Development Roadmap |
-| [README_MCP.md](README_MCP.md) | MCP Plugin Development Guide |
-
----
 
 ## Feature Modules
 
