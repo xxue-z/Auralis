@@ -35,21 +35,6 @@ SETTINGS_SCHEMA: dict[str, dict[str, Any]] = {
         "label": "云端模型", "description": "复杂任务使用的云端 AI 供应商",
         "ai_editable": True, "confirm_required": True,
     },
-    "model.local.enabled": {
-        "type": "boolean", "default": False,
-        "label": "本地模型", "description": "启用本地模型用于离线场景，需要更多内存",
-        "ai_editable": True, "confirm_required": True,
-    },
-    "voice.enabled": {
-        "type": "boolean", "default": False,
-        "label": "语音", "description": "启用语音输入和输出",
-        "ai_editable": True, "confirm_required": False,
-    },
-    "voice.speed": {
-        "type": "number", "default": 1.0, "min": 0.5, "max": 2.0, "step": 0.1,
-        "label": "语速", "description": "语音输出的语速。0.5=半速，1.0=正常，2.0=双倍",
-        "ai_editable": True, "confirm_required": False,
-    },
     "security.confirm_destructive": {
         "type": "boolean", "default": True,
         "label": "确认破坏性操作", "description": "删除文件或修改系统前要求确认",
@@ -270,5 +255,9 @@ def validate_setting_value(key: str, value: Any) -> tuple[bool, str]:
     elif t == "boolean":
         if not isinstance(value, bool):
             return False, f"'{key}' 必须是 true 或 false"
+
+    elif t == "string":
+        if not isinstance(value, str):
+            return False, f"'{key}' 必须是字符串"
 
     return True, ""
