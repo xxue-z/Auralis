@@ -19,6 +19,11 @@ agent/**/__pycache__/
 .env
 agent/.env
 
+# Agent 数据文件
+agent/data/
+*.db
+*.sqlite
+
 # IDE
 .vscode/
 .idea/
