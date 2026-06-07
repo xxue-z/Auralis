@@ -1,0 +1,15 @@
+{
+  "name": "file.mcp",
+  "version": "1.0.0",
+  "description": "文件系统操作插件 — 提供文件读写、删除、列表等能力",
+  "author": "Auralis Team",
+  "capabilities": [
+    "file.read",
+    "file.write",
+    "file.delete",
+    "file.list",
+    "file.copy",
+    "file.move",
+    "file.info"
+  ]
+}
