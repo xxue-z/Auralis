@@ -21,6 +21,7 @@ from tts.router import TTSRouter
 from tts.clone import VoiceCloner
 from tts.generator import VoiceGenerator
 from memory.conversation_store import ConversationStore
+from memory.audit_store import AuditStore
 
 logging.basicConfig(
     level=logging.INFO,
@@ -35,6 +36,7 @@ tts_router = TTSRouter()
 voice_cloner = VoiceCloner()
 voice_generator = VoiceGenerator()
 conversation_store = ConversationStore()
+audit_store = AuditStore()
 
 # 等待前端返回 capability 执行结果的回调
 pending_results: dict[str, asyncio.Future] = {}
@@ -195,7 +197,23 @@ async def _execute_capabilities(ws: WebSocketServerProtocol, message_id: str, re
     }))
 
     try:
+        import time
+        start_time = time.monotonic()
         cap_results = await asyncio.wait_for(future, timeout=30.0)
+        duration_ms = int((time.monotonic() - start_time) * 1000)
+
+        # 审计日志
+        for cap in result["capabilities"]:
+            cap_type = cap.get("capability", {}).get("type", "unknown")
+            success = cap_results[0].get("success", False) if cap_results else False
+            audit_store.log(
+                capability_type=cap_type,
+                session_id="rule-path",
+                result="success" if success else "error",
+                error_message=cap_results[0].get("error") if cap_results and not success else None,
+                duration_ms=duration_ms,
+            )
+
         reply = format_capability_results(result["intent"], cap_results)
         await send_text_response(ws, message_id, reply)
     except asyncio.TimeoutError:
@@ -290,7 +308,21 @@ async def _handle_llm_tool_calls(
         logger.info(f"执行工具: {tool_name}({args})")
 
         # 根据工具名执行对应操作
+        import time
+        start_time = time.monotonic()
         tool_result = await _execute_tool(tool_name, args, ws, message_id)
+        duration_ms = int((time.monotonic() - start_time) * 1000)
+
+        # 审计日志
+        audit_store.log(
+            capability_type=tool_name,
+            session_id=session_id,
+            risk_level="low",
+            result="success" if tool_result.get("success") else "error",
+            error_message=tool_result.get("error"),
+            duration_ms=duration_ms,
+            details={"args": args},
+        )
 
         # 持久化工具结果
         content = json.dumps(tool_result, ensure_ascii=False) if isinstance(tool_result, dict) else str(tool_result)
