@@ -51,11 +51,17 @@ def build_system_prompt(locale: str = "zh-CN", settings: dict | None = None) -> 
 执行操作系统级操作。当用户要求文件操作、应用管理、系统操作时使用。
 - file.list: 扫描目录文件
 - file.read: 读取文件内容
+- file.write: 写入文件内容
+- file.delete: 删除文件（⚠️ 危险，需确认）
+- file.move: 移动文件
+- file.copy: 复制文件
+- file.search: 搜索文件
 - app.launch: 启动应用
 - app.close: 关闭应用
 - app.list: 列出运行中的应用
 - system.info: 查看系统信息
 - system.lock: 锁定系统
+- system.shutdown: 关机（⚠️ 危险，需确认）
 
 ### open_settings
 打开设置面板。当用户说"打开设置"时使用。
