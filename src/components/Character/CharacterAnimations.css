@@ -53,30 +53,38 @@
   animation: fade-in 0.3s ease-out;
 }
 
+/* SVG 角色动画 — 确保 transform-origin 为中心 */
 .character-idle {
+  transform-origin: center center;
   animation: idle-breathe 3s ease-in-out infinite;
 }
 
 .character-speaking {
+  transform-origin: center center;
   animation: speaking-body 0.5s ease-in-out infinite;
 }
 
 .character-speaking .mouth {
+  transform-origin: center center;
   animation: speaking-mouth 0.3s ease-in-out infinite;
 }
 
 .character-thinking {
+  transform-origin: center center;
   animation: thinking-tilt 2s ease-in-out infinite;
 }
 
 .character-thinking .eyes {
+  transform-origin: center center;
   animation: thinking-blink 2s ease-in-out infinite;
 }
 
 .character-happy {
+  transform-origin: center center;
   animation: happy-bounce 0.6s ease-in-out infinite;
 }
 
 .character-happy .sparkle {
+  transform-origin: center center;
   animation: happy-sparkle 0.8s ease-in-out infinite;
 }

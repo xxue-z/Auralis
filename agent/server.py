@@ -276,6 +276,15 @@ async def _execute_capability_batch(ws: WebSocketServerProtocol, message_id: str
 
 async def _handle_with_llm(ws: WebSocketServerProtocol, message_id: str, user_input: str):
     """使用 LLM 处理消息（支持 Function Calling）"""
+    # 发送思考状态
+    await ws.send(json.dumps({
+        "type": "agent_response",
+        "id": message_id,
+        "content": "",
+        "status": "thinking",
+        "persona_state": "thinking",
+    }))
+
     # 获取或创建 session
     session_id = _get_session_id(ws)
 

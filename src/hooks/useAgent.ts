@@ -207,6 +207,8 @@ export function useAgent() {
       timestamp: Date.now(),
     });
     setThinking(true);
+    // 设置角色为思考状态
+    useAgentStore.getState().setPersonaState("thinking");
     wsService.send({
       type: "user_message",
       id: messageId,

@@ -27,7 +27,7 @@ class WebSocketService {
         this.emit(data.type, data);
 
         // 更新角色状态
-        if (data.type === "agent_response" && data.persona_state) {
+        if ((data.type === "agent_response" || data.type === "agent_audio") && data.persona_state) {
           useAgentStore.getState().setPersonaState(data.persona_state);
         }
       } catch (e) {
