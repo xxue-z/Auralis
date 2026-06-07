@@ -20,13 +20,13 @@ async def execute(request: MCPRequest) -> MCPResponse:
 
     handler = handlers.get(action)
     if not handler:
-        return MCPResponse.error(request.id, "UNSUPPORTED_ACTION", f"不支持的操作: {action}")
+        return MCPResponse.make_error(request.id, "UNSUPPORTED_ACTION", f"不支持的操作: {action}")
 
     try:
         result = await handler(input_data)
         return MCPResponse.success(request.id, result)
     except Exception as e:
-        return MCPResponse.error(request.id, "INTERNAL_ERROR", str(e))
+        return MCPResponse.make_error(request.id, "INTERNAL_ERROR", str(e))
 
 
 async def _handle_info(input_data: dict) -> dict:

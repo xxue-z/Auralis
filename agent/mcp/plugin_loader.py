@@ -138,7 +138,7 @@ class PluginLoader:
                     return result
                 except Exception as e:
                     logger.error(f"插件 {_meta.name} 执行失败: {e}")
-                    return MCPResponse.error(request.id, "PLUGIN_ERROR", str(e))
+                    return MCPResponse.make_error(request.id, "PLUGIN_ERROR", str(e))
 
             # 注册到路由器
             self._router.register_plugin(meta.name, meta.capabilities, wrapped_executor)

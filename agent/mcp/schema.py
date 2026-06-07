@@ -119,7 +119,7 @@ class MCPResponse:
         return cls(id=request_id, status="success", data=data)
 
     @classmethod
-    def error(cls, request_id: str, code: str, message: str) -> "MCPResponse":
+    def make_error(cls, request_id: str, code: str, message: str) -> "MCPResponse":
         return cls(id=request_id, status="error", error={"code": code, "message": message})
 
     @classmethod

@@ -101,7 +101,7 @@ class TestMCPResponse:
 
     def test_error(self):
         """错误响应"""
-        resp = MCPResponse.error("req_001", "NOT_FOUND", "文件不存在")
+        resp = MCPResponse.make_error("req_001", "NOT_FOUND", "文件不存在")
         assert resp.status == "error"
         assert resp.error["code"] == "NOT_FOUND"
 
