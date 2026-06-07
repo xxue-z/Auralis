@@ -24,7 +24,7 @@ from memory.conversation_store import ConversationStore
 from memory.audit_store import AuditStore
 from memory.event_store import EventStore
 from planner.dag import TaskGraph, build_planning_prompt, parse_planning_result
-from planner.executor import TaskExecutor, summarize_results
+from planner.executor import TaskExecutor
 
 logging.basicConfig(
     level=logging.INFO,
@@ -373,10 +373,10 @@ async def _execute_tool_calls_dag(
             args = {}
 
         node = TaskNode(
-            name=tc["name"],
+            name=f"{tc['name']}_{tc['id'][:8]}",
             tool_name=tc["name"],
             args=args,
-            task_id=tc["id"][:8],
+            task_id=tc["id"],
         )
         graph.add_node(node)
 
@@ -388,19 +388,16 @@ async def _execute_tool_calls_dag(
 
     # 进度回调
     async def on_progress(progress: dict):
-        await ws.send(json.dumps({"type": "task_progress", **progress}))
+        await ws.send(json.dumps({"type": "task_progress", "graph": progress}))
 
     # 创建执行器
     async def tool_executor(tool_name: str, args: dict) -> dict:
         return await _execute_tool(tool_name, args, ws, message_id)
 
     executor = TaskExecutor(tool_executor=tool_executor, on_progress=on_progress)
-    import time
-    start_time = time.monotonic()
     await executor.execute(graph)
-    duration_ms = int((time.monotonic() - start_time) * 1000)
 
-    # 审计日志 + 持久化结果
+    # 审计日志 + 持久化结果（使用每个节点独立的 duration_ms）
     for node in graph.nodes.values():
         result = node.result or {"success": False, "error": node.error}
         audit_store.log(
@@ -409,7 +406,7 @@ async def _execute_tool_calls_dag(
             risk_level="low",
             result="success" if node.status.value == "completed" else "error",
             error_message=node.error,
-            duration_ms=duration_ms,
+            duration_ms=node.duration_ms,
             details={"args": node.args},
         )
         content = json.dumps(result, ensure_ascii=False) if isinstance(result, dict) else str(result)

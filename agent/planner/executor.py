@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import time
 from typing import Any, Callable, Awaitable
 
 from planner.dag import TaskGraph, TaskNode, TaskStatus
@@ -76,6 +77,7 @@ class TaskExecutor:
         graph.update_status(node.id, TaskStatus.RUNNING)
         await self._report_progress(graph)
 
+        start_time = time.monotonic()
         try:
             # 解析参数中的变量引用
             resolved_args = graph.resolve_args(node.args, node.id)
@@ -98,6 +100,7 @@ class TaskExecutor:
             logger.error(error, exc_info=True)
             graph.mark_failed(node.id, error)
 
+        node.duration_ms = int((time.monotonic() - start_time) * 1000)
         await self._report_progress(graph)
 
     async def _report_progress(self, graph: TaskGraph) -> None:

@@ -39,6 +39,7 @@ class TaskNode:
         self.status = TaskStatus.PENDING
         self.result: dict[str, Any] | None = None
         self.error: str | None = None
+        self.duration_ms: int = 0  # 执行耗时（毫秒）
         self.dependencies = dependencies or []
         self.provides = provides or []
         self.consumes = consumes or []
@@ -52,6 +53,7 @@ class TaskNode:
             "status": self.status.value,
             "result": self.result,
             "error": self.error,
+            "duration_ms": self.duration_ms,
             "dependencies": self.dependencies,
             "provides": self.provides,
             "consumes": self.consumes,
@@ -85,11 +87,14 @@ class TaskGraph:
             if node.status not in (TaskStatus.PENDING, TaskStatus.READY):
                 continue
             # 检查所有依赖是否已完成
-            deps_met = all(
-                self.nodes[dep_id].status == TaskStatus.COMPLETED
-                for dep_id in node.dependencies
-                if dep_id in self.nodes
-            )
+            # 缺失的依赖视为未满足（all() 对空迭代器返回 True，需要特殊处理）
+            if not node.dependencies:
+                deps_met = True
+            else:
+                deps_met = all(
+                    dep_id in self.nodes and self.nodes[dep_id].status == TaskStatus.COMPLETED
+                    for dep_id in node.dependencies
+                )
             if deps_met:
                 ready.append(node)
         return ready
@@ -146,9 +151,12 @@ class TaskGraph:
         return layers
 
     def detect_cycle(self) -> bool:
-        """检测是否存在循环依赖"""
+        """检测是否存在循环依赖（支持混合图：部分节点有环、部分无环）"""
+        if not self.nodes:
+            return False
         layers = self.topological_sort()
-        return len(layers) == 0 and len(self.nodes) > 0
+        processed = sum(len(layer) for layer in layers)
+        return processed < len(self.nodes)
 
     def get_upstream_results(self, task_id: str) -> dict[str, Any]:
         """获取上游任务的输出结果（用于变量引用解析）"""
@@ -188,7 +196,7 @@ class TaskGraph:
         for _, to_id in self.edges:
             if to_id == failed_id:
                 continue
-            if to_id in self.nodes and self.nodes[to_id].status == TaskStatus.PENDING:
+            if to_id in self.nodes and self.nodes[to_id].status in (TaskStatus.PENDING, TaskStatus.READY):
                 # 检查是否依赖了失败的节点
                 if failed_id in self.nodes[to_id].dependencies:
                     self.nodes[to_id].status = TaskStatus.SKIPPED
