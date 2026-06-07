@@ -1,33 +1,28 @@
 """审计日志持久化 — SQLite 存储"""
 
+import json
 import logging
 import sqlite3
 from pathlib import Path
 from typing import Any
 
-logger = logging.getLogger("auralis.memory.audit")
+from memory.db import Database
 
-DEFAULT_DB_PATH = Path(__file__).parent.parent / "data" / "conversations.db"
+logger = logging.getLogger("auralis.memory.audit")
 
 
 class AuditStore:
-    """审计日志存储（与 ConversationStore 共享 DB 文件）"""
+    """审计日志存储"""
 
     def __init__(self, db_path: Path | str | None = None):
-        self._db_path = str(db_path or DEFAULT_DB_PATH)
-        self._conn: sqlite3.Connection | None = None
+        self._db = Database(db_path)
         self._init_db()
 
     def _get_conn(self) -> sqlite3.Connection:
-        if self._conn is None:
-            self._conn = sqlite3.connect(self._db_path)
-            self._conn.row_factory = sqlite3.Row
-            self._conn.execute("PRAGMA journal_mode=WAL")
-        return self._conn
+        return self._db.get_conn()
 
     def _init_db(self):
-        conn = self._get_conn()
-        conn.executescript("""
+        self._db.init_tables("""
             CREATE TABLE IF NOT EXISTS audit_log (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -48,7 +43,6 @@ class AuditStore:
             CREATE INDEX IF NOT EXISTS idx_audit_capability
                 ON audit_log(capability_type);
         """)
-        conn.commit()
 
     def log(
         self,

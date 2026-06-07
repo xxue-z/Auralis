@@ -6,29 +6,23 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
-logger = logging.getLogger("auralis.memory.event")
+from memory.db import Database
 
-DEFAULT_DB_PATH = Path(__file__).parent.parent / "data" / "conversations.db"
+logger = logging.getLogger("auralis.memory.event")
 
 
 class EventStore:
-    """事件存储（与 ConversationStore/AuditStore 共享 DB）"""
+    """事件存储"""
 
     def __init__(self, db_path: Path | str | None = None):
-        self._db_path = str(db_path or DEFAULT_DB_PATH)
-        self._conn: sqlite3.Connection | None = None
+        self._db = Database(db_path)
         self._init_db()
 
     def _get_conn(self) -> sqlite3.Connection:
-        if self._conn is None:
-            self._conn = sqlite3.connect(self._db_path)
-            self._conn.row_factory = sqlite3.Row
-            self._conn.execute("PRAGMA journal_mode=WAL")
-        return self._conn
+        return self._db.get_conn()
 
     def _init_db(self):
-        conn = self._get_conn()
-        conn.executescript("""
+        self._db.init_tables("""
             CREATE TABLE IF NOT EXISTS events (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -46,7 +40,6 @@ class EventStore:
             CREATE INDEX IF NOT EXISTS idx_events_session
                 ON events(session_id);
         """)
-        conn.commit()
 
     def record(
         self,

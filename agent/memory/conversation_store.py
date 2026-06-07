@@ -6,33 +6,24 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
-logger = logging.getLogger("auralis.memory.conversation")
+from memory.db import Database
 
-# 数据库文件路径
-DEFAULT_DB_PATH = Path(__file__).parent.parent / "data" / "conversations.db"
+logger = logging.getLogger("auralis.memory.conversation")
 
 
 class ConversationStore:
-    """对话历史持久化存储（asyncio 单线程安全）"""
+    """对话历史持久化存储"""
 
     def __init__(self, db_path: Path | str | None = None):
-        self._db_path = str(db_path or DEFAULT_DB_PATH)
-        self._conn: sqlite3.Connection | None = None
+        self._db = Database(db_path)
         self._init_db()
 
     def _get_conn(self) -> sqlite3.Connection:
-        """获取数据库连接（懒初始化）"""
-        if self._conn is None:
-            self._conn = sqlite3.connect(self._db_path)
-            self._conn.row_factory = sqlite3.Row
-            self._conn.execute("PRAGMA journal_mode=WAL")
-            self._conn.execute("PRAGMA foreign_keys=ON")
-        return self._conn
+        return self._db.get_conn()
 
     def _init_db(self):
         """初始化数据库表"""
-        conn = self._get_conn()
-        conn.executescript("""
+        self._db.init_tables("""
             CREATE TABLE IF NOT EXISTS sessions (
                 session_id TEXT PRIMARY KEY,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -54,7 +45,6 @@ class ConversationStore:
             CREATE INDEX IF NOT EXISTS idx_messages_session
                 ON messages(session_id, created_at);
         """)
-        conn.commit()
 
     def save_message(
         self,
