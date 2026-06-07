@@ -106,7 +106,18 @@ class AuditStore:
             params,
         ).fetchall()
 
-        return [dict(row) for row in rows]
+        results = []
+        for row in rows:
+            entry = dict(row)
+            # 解析 details JSON 字段
+            if entry.get("details"):
+                try:
+                    import json
+                    entry["details"] = json.loads(entry["details"])
+                except (json.JSONDecodeError, TypeError):
+                    pass
+            results.append(entry)
+        return results
 
     def count(self, session_id: str | None = None) -> int:
         """统计审计日志数量"""

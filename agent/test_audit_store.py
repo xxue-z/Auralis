@@ -56,7 +56,9 @@ class TestAuditLog:
         store.log("settings_change", details={"key": "locale", "value": "zh-CN"})
         logs = store.query()
         assert logs[0]["details"] is not None
-        assert "locale" in logs[0]["details"]
+        assert isinstance(logs[0]["details"], dict)
+        assert logs[0]["details"]["key"] == "locale"
+        assert logs[0]["details"]["value"] == "zh-CN"
 
     def test_cleanup_old(self, store):
         # 插入旧数据

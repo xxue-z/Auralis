@@ -202,21 +202,31 @@ async def _execute_capabilities(ws: WebSocketServerProtocol, message_id: str, re
         cap_results = await asyncio.wait_for(future, timeout=30.0)
         duration_ms = int((time.monotonic() - start_time) * 1000)
 
-        # 审计日志
-        for cap in result["capabilities"]:
+        # 审计日志（每个 capability 对应一个结果）
+        session_id = _get_session_id(ws)
+        for i, cap in enumerate(result["capabilities"]):
             cap_type = cap.get("capability", {}).get("type", "unknown")
-            success = cap_results[0].get("success", False) if cap_results else False
+            cap_result = cap_results[i] if i < len(cap_results) else {"success": False, "error": "结果缺失"}
             audit_store.log(
                 capability_type=cap_type,
-                session_id="rule-path",
-                result="success" if success else "error",
-                error_message=cap_results[0].get("error") if cap_results and not success else None,
+                session_id=session_id,
+                result="success" if cap_result.get("success") else "error",
+                error_message=cap_result.get("error"),
                 duration_ms=duration_ms,
             )
 
         reply = format_capability_results(result["intent"], cap_results)
         await send_text_response(ws, message_id, reply)
     except asyncio.TimeoutError:
+        # 超时也记录审计
+        for cap in result["capabilities"]:
+            cap_type = cap.get("capability", {}).get("type", "unknown")
+            audit_store.log(
+                capability_type=cap_type,
+                session_id=_get_session_id(ws),
+                result="timeout",
+                error_message="操作执行超时",
+            )
         await send_text_response(ws, message_id, "操作执行超时，请重试。")
     finally:
         pending_results.pop(request_id, None)
@@ -424,9 +434,8 @@ async def _llm_summarize_results(ws: WebSocketServerProtocol, message_id: str, s
     messages = [{"role": "system", "content": system_prompt}]
     messages.extend(history)
 
-    # 添加 synthetic user prompt（持久化以保持对话格式正确）
+    # 添加 synthetic user prompt（不持久化，仅用于本次 LLM 调用）
     summarize_prompt = "请根据以上工具执行结果，用简洁的中文回复用户。"
-    conversation_store.save_message(session_id, "user", summarize_prompt)
     messages.append({"role": "user", "content": summarize_prompt})
 
     try:
