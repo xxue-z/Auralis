@@ -62,7 +62,17 @@ impl OSAdapterRouter {
             Capability::AppList => windows::app::list().await,
             Capability::SystemInfo => windows::system::info().await,
             Capability::SystemLock => windows::system::lock().await,
-            _ => Err("未实现的操作".to_string()),
+            Capability::UIClick { x, y } => windows::ui::click(*x, *y).await.map(|()| serde_json::json!({"clicked": true, "x": x, "y": y})),
+            Capability::UIType { text } => windows::ui::type_text(text).await.map(|()| serde_json::json!({"typed": true, "length": text.len()})),
+            Capability::UIScreenshot { region } => {
+                windows::ui::screenshot(region.clone()).await.map(|b64| {
+                    serde_json::json!({"image": b64, "format": "png"})
+                })
+            }
+            Capability::FileMove { .. } | Capability::FileCopy { .. }
+            | Capability::FileSearch { .. } | Capability::SystemShutdown { .. } => {
+                Err("此操作暂未实现".to_string())
+            }
         };
 
         let duration = start.elapsed().as_millis() as u64;
