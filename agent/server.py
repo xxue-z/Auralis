@@ -23,8 +23,11 @@ from tts.generator import VoiceGenerator
 from memory.conversation_store import ConversationStore
 from memory.audit_store import AuditStore
 from memory.event_store import EventStore
+from memory.memory_layer import MemoryLayer
 from planner.dag import TaskGraph, TaskNode, build_planning_prompt, parse_planning_result
 from planner.executor import TaskExecutor
+from policy.risk_engine import RiskEngine
+from policy.confirmation import ConfirmationManager
 
 logging.basicConfig(
     level=logging.INFO,
@@ -41,6 +44,9 @@ voice_generator = VoiceGenerator()
 conversation_store = ConversationStore()
 audit_store = AuditStore()
 event_store = EventStore()
+memory_layer = MemoryLayer()
+risk_engine = RiskEngine()
+confirm_manager = ConfirmationManager()
 
 # 等待前端返回 capability 执行结果的回调
 pending_results: dict[str, asyncio.Future] = {}
@@ -91,8 +97,8 @@ async def handle_user_message(ws: WebSocketServerProtocol, data: dict):
     session_id = _get_session_id(ws)
     logger.info(f"用户消息: {content}")
 
-    # 记录用户输入事件
-    event_store.record("user_action", "chat_input", {"content": content}, session_id=session_id)
+    # 记录用户输入事件（通过记忆系统）
+    memory_layer.record_user_action("chat_input", {"content": content}, session_id=session_id)
 
     # 1. 先尝试规则匹配（快速路径）
     result = intent_parser.parse(content)
@@ -191,7 +197,17 @@ async def _handle_settings_change(ws: WebSocketServerProtocol, message_id: str, 
 
 
 async def _execute_capabilities(ws: WebSocketServerProtocol, message_id: str, result: dict):
-    """执行 capability 操作"""
+    """执行 capability 操作（含风险评估）"""
+    # 风险评估
+    for cap in result["capabilities"]:
+        cap_type = cap.get("capability", {}).get("type", "unknown")
+        cap_payload = cap.get("capability", {}).get("payload", {})
+        risk_level, risk_score = risk_engine.evaluate(cap_type, cap_payload)
+        if risk_level.value == "high":
+            confirm_info = confirm_manager.decide(cap_type, cap_payload, risk_level)
+            await send_text_response(ws, message_id, confirm_info.message)
+            return  # 高风险操作暂停，等待用户确认
+
     request_id = str(uuid.uuid4())[:8]
     logger.info(f"发送 capability 请求: {request_id}, {len(result['capabilities'])} 个操作")
 
@@ -251,6 +267,11 @@ async def _handle_with_llm(ws: WebSocketServerProtocol, message_id: str, user_in
     # 构建系统提示词
     locale = user_settings.get("locale", "zh-CN")
     system_prompt = build_system_prompt(locale, user_settings)
+
+    # 注入记忆上下文
+    memory_context = memory_layer.get_context_for_llm(user_input)
+    if memory_context:
+        system_prompt += f"\n\n## 记忆上下文\n{memory_context}"
 
     # 组装消息
     messages = [{"role": "system", "content": system_prompt}]
