@@ -3,7 +3,6 @@
 import json
 import logging
 import sqlite3
-import threading
 from pathlib import Path
 from typing import Any
 
@@ -14,21 +13,21 @@ DEFAULT_DB_PATH = Path(__file__).parent.parent / "data" / "conversations.db"
 
 
 class ConversationStore:
-    """对话历史持久化存储"""
+    """对话历史持久化存储（asyncio 单线程安全）"""
 
     def __init__(self, db_path: Path | str | None = None):
         self._db_path = str(db_path or DEFAULT_DB_PATH)
-        self._local = threading.local()
+        self._conn: sqlite3.Connection | None = None
         self._init_db()
 
     def _get_conn(self) -> sqlite3.Connection:
-        """获取当前线程的数据库连接"""
-        if not hasattr(self._local, "conn") or self._local.conn is None:
-            self._local.conn = sqlite3.connect(self._db_path)
-            self._local.conn.row_factory = sqlite3.Row
-            self._local.conn.execute("PRAGMA journal_mode=WAL")
-            self._local.conn.execute("PRAGMA foreign_keys=ON")
-        return self._local.conn
+        """获取数据库连接（懒初始化）"""
+        if self._conn is None:
+            self._conn = sqlite3.connect(self._db_path)
+            self._conn.row_factory = sqlite3.Row
+            self._conn.execute("PRAGMA journal_mode=WAL")
+            self._conn.execute("PRAGMA foreign_keys=ON")
+        return self._conn
 
     def _init_db(self):
         """初始化数据库表"""
@@ -105,6 +104,58 @@ class ConversationStore:
 
         conn.commit()
 
+    def save_messages(self, session_id: str, messages: list[dict]):
+        """批量保存消息（单事务，保证原子性）"""
+        conn = self._get_conn()
+        try:
+            # 确保 session 存在
+            conn.execute(
+                "INSERT OR IGNORE INTO sessions (session_id) VALUES (?)",
+                (session_id,),
+            )
+
+            first_user_content = None
+            for msg in messages:
+                role = msg.get("role", "")
+                content = msg.get("content", "")
+                tool_calls = msg.get("tool_calls")
+                tool_call_id = msg.get("tool_call_id")
+
+                tool_calls_json = json.dumps(tool_calls, ensure_ascii=False) if tool_calls else None
+                conn.execute(
+                    "INSERT INTO messages (session_id, role, content, tool_calls, tool_call_id) "
+                    "VALUES (?, ?, ?, ?, ?)",
+                    (session_id, role, content, tool_calls_json, tool_call_id),
+                )
+
+                if role == "user" and first_user_content is None:
+                    first_user_content = content
+
+            # 更新 session 时间戳
+            conn.execute(
+                "UPDATE sessions SET updated_at = CURRENT_TIMESTAMP "
+                "WHERE session_id = ?",
+                (session_id,),
+            )
+
+            # 设置 session title
+            if first_user_content:
+                row = conn.execute(
+                    "SELECT title FROM sessions WHERE session_id = ?",
+                    (session_id,),
+                ).fetchone()
+                if row and not row["title"]:
+                    title = first_user_content[:50] + ("..." if len(first_user_content) > 50 else "")
+                    conn.execute(
+                        "UPDATE sessions SET title = ? WHERE session_id = ?",
+                        (title, session_id),
+                    )
+
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+
     def get_history(self, session_id: str, limit: int = 20) -> list[dict]:
         """获取对话历史（按时间正序，最近 N 条）"""
         conn = self._get_conn()
@@ -118,9 +169,10 @@ class ConversationStore:
         # 反转为正序（最旧在前）
         messages = []
         for row in reversed(rows):
-            msg: dict[str, Any] = {"role": row["role"]}
-            if row["content"]:
-                msg["content"] = row["content"]
+            msg: dict[str, Any] = {
+                "role": row["role"],
+                "content": row["content"] or "",
+            }
             if row["tool_calls"]:
                 msg["tool_calls"] = json.loads(row["tool_calls"])
             if row["tool_call_id"]:

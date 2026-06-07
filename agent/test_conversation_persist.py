@@ -2,6 +2,7 @@
 
 import json
 import pytest
+import sqlite3
 import tempfile
 from pathlib import Path
 from memory.conversation_store import ConversationStore
@@ -55,6 +56,8 @@ class TestSaveAndLoad:
         history = store.get_history("s1")
         assert len(history) == 1
         assert history[0]["tool_calls"] == tool_calls
+        # content 应始终存在（即使是空字符串）
+        assert "content" in history[0]
 
     def test_tool_result_saved(self, store):
         store.save_message("s1", "tool", '{"success": true}', tool_call_id="c1")
@@ -63,6 +66,41 @@ class TestSaveAndLoad:
         assert len(history) == 1
         assert history[0]["role"] == "tool"
         assert history[0]["tool_call_id"] == "c1"
+
+    def test_save_messages_batch(self, store):
+        """测试批量保存（原子性）"""
+        store.save_messages("s1", [
+            {"role": "user", "content": "你好"},
+            {"role": "assistant", "content": "你好！"},
+        ])
+
+        history = store.get_history("s1")
+        assert len(history) == 2
+        assert history[0]["role"] == "user"
+        assert history[1]["role"] == "assistant"
+
+    def test_save_messages_atomic(self, store):
+        """测试批量保存的原子性（全部成功或全部失败）"""
+        # 正常批量保存
+        store.save_messages("s1", [
+            {"role": "user", "content": "hello"},
+            {"role": "assistant", "content": "world"},
+        ])
+        history = store.get_history("s1")
+        assert len(history) == 2
+
+        # 空列表不应报错
+        store.save_messages("s2", [])
+        assert store.get_message_count("s2") == 0
+
+    def test_empty_content_always_present(self, store):
+        """验证 content 键始终存在"""
+        tool_calls = [{"id": "c1", "type": "function", "function": {"name": "test"}}]
+        store.save_message("s1", "assistant", "", tool_calls=tool_calls)
+
+        history = store.get_history("s1")
+        assert "content" in history[0]
+        assert history[0]["content"] == ""
 
 
 # ============================================================

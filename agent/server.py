@@ -235,9 +235,11 @@ async def _handle_with_llm(ws: WebSocketServerProtocol, message_id: str, user_in
             # 纯文本回复
             reply = llm_result if isinstance(llm_result, str) else str(llm_result)
             await send_text_response(ws, message_id, reply)
-            # 持久化对话
-            conversation_store.save_message(session_id, "user", user_input)
-            conversation_store.save_message(session_id, "assistant", reply)
+            # 持久化对话（批量写入，保证原子性）
+            conversation_store.save_messages(session_id, [
+                {"role": "user", "content": user_input},
+                {"role": "assistant", "content": reply},
+            ])
 
     except Exception as e:
         logger.error(f"LLM 调用失败: {e}", exc_info=True)
@@ -272,8 +274,10 @@ async def _handle_llm_tool_calls(
         {"id": tc["id"], "type": "function", "function": {"name": tc["name"], "arguments": tc["arguments"]}}
         for tc in tool_calls
     ]
-    conversation_store.save_message(session_id, "user", user_input)
-    conversation_store.save_message(session_id, "assistant", assistant_content, tool_calls=tool_calls_for_storage)
+    conversation_store.save_messages(session_id, [
+        {"role": "user", "content": user_input},
+        {"role": "assistant", "content": assistant_content, "tool_calls": tool_calls_for_storage},
+    ])
 
     # 执行每个 tool_call 并持久化结果
     for tc in tool_calls:
