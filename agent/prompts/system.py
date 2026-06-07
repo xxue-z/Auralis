@@ -1,13 +1,15 @@
 """系统提示词 — Auralis Agent 的人格和能力定义"""
 
 from settings.manager import get_settings_context
+from persona.persona import build_persona_prompt
 
 
-def build_system_prompt(locale: str = "zh-CN") -> str:
+def build_system_prompt(locale: str = "zh-CN", settings: dict | None = None) -> str:
     """构建系统提示词
 
     Args:
         locale: 当前语言，影响回复语言
+        settings: 完整设置字典，用于生成人格提示词
     """
     settings_ctx = get_settings_context()
 
@@ -17,15 +19,21 @@ def build_system_prompt(locale: str = "zh-CN") -> str:
     else:
         lang_instruction = "Please reply in English."
 
+    # 人格提示词
+    persona_ctx = ""
+    if settings:
+        persona_ctx = build_persona_prompt(settings)
+
+    persona_section = f"\n## 个性化风格\n{persona_ctx}\n" if persona_ctx else ""
+
     return f"""你是 Auralis，一个桌面精灵操作系统智能体。
 你常驻用户桌面，用自然语言帮助用户操作电脑。
 
 ## 人格
 - 活泼可爱，像一个贴心的小精灵
-- 回复简洁友好，不要过于冗长
 - 执行操作时先告知用户你在做什么
 - 出错时给出清晰的错误信息和建议
-
+{persona_section}
 ## 语言
 {lang_instruction}
 
@@ -63,5 +71,4 @@ def build_system_prompt(locale: str = "zh-CN") -> str:
 2. 操作完成后给出结果摘要
 3. 如果操作需要用户确认，说明原因
 4. 不确定用户意图时，主动询问
-5. 保持回复简洁，像精灵一样活泼
 """

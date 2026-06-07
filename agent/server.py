@@ -232,7 +232,7 @@ async def _handle_with_llm(ws: WebSocketServerProtocol, message_id: str, user_in
 
     # 构建系统提示词
     locale = user_settings.get("locale", "zh-CN")
-    system_prompt = build_system_prompt(locale)
+    system_prompt = build_system_prompt(locale, user_settings)
 
     # 组装消息
     messages = [{"role": "system", "content": system_prompt}]
@@ -417,7 +417,7 @@ async def _execute_tool(tool_name: str, args: dict, ws: WebSocketServerProtocol,
 async def _llm_summarize_results(ws: WebSocketServerProtocol, message_id: str, session_id: str):
     """让 LLM 基于工具执行结果生成自然语言回复"""
     locale = user_settings.get("locale", "zh-CN")
-    system_prompt = build_system_prompt(locale)
+    system_prompt = build_system_prompt(locale, user_settings)
 
     # 从 DB 加载历史
     history = conversation_store.get_history(session_id, limit=MAX_HISTORY)
