@@ -51,8 +51,6 @@ Auralis 是一个常驻桌面的智能助手，通过自然语言与用户交互
 └─────────────────────────────────────────────┘
 ```
 
-详细架构设计请参考：[.docs/specs/v1.0.0/ARCHITECTURE.md](.docs/specs/v1.0.0/ARCHITECTURE.md)
-
 ---
 
 ## 技术栈
@@ -179,23 +177,6 @@ Auralis/
 
 ---
 
-## 文档导航
-
-| 文档 | 说明 |
-|------|------|
-| [CLAUDE.md](CLAUDE.md) | 项目开发规范 |
-| [.docs/specs/v1.0.0/PRD.md](.docs/specs/v1.0.0/PRD.md) | 产品需求文档 |
-| [.docs/specs/v1.0.0/ARCHITECTURE.md](.docs/specs/v1.0.0/ARCHITECTURE.md) | 系统架构设计 |
-| [.docs/specs/v1.0.0/OS-ADAPTER-SPEC.md](.docs/specs/v1.0.0/OS-ADAPTER-SPEC.md) | OS Adapter 规格 |
-| [.docs/specs/v1.0.0/MCP-PROTOCOL-SPEC.md](.docs/specs/v1.0.0/MCP-PROTOCOL-SPEC.md) | MCP 协议规格 |
-| [.docs/specs/v1.0.0/PERSONA-MEMORY-SPEC.md](.docs/specs/v1.0.0/PERSONA-MEMORY-SPEC.md) | 人格与记忆规格 |
-| [.docs/specs/v1.0.0/I18N-SETTINGS-SPEC.md](.docs/specs/v1.0.0/I18N-SETTINGS-SPEC.md) | 国际化与设置规格 |
-| [.docs/specs/v1.0.0/MODEL-CONFIG-SPEC.md](.docs/specs/v1.0.0/MODEL-CONFIG-SPEC.md) | 模型配置规格 |
-| [.docs/specs/v1.0.0/DEVELOPMENT-ROADMAP.md](.docs/specs/v1.0.0/DEVELOPMENT-ROADMAP.md) | 开发路线图 |
-| [README_MCP.md](README_MCP.md) | MCP 插件开发手册 |
-
----
-
 ## 功能模块
 
 | 模块 | 状态 | 说明 |
@@ -237,4 +218,11 @@ python -m pytest test_*.py -v
 
 ## 许可证
 
-MIT License
+本项目采用 [个人学习与非商业使用许可协议](LICENSE)。
+
+- ✅ 个人学习和研究
+- ✅ 非商业个人使用
+- ❌ 商业使用（需授权）
+- ❌ 再分发
+
+如有商业使用需求，请联系作者获取授权。

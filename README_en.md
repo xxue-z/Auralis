@@ -237,4 +237,11 @@ Currently **268** unit tests all passing.
 
 ## License
 
-MIT License
+This project uses the [Personal Learning & Non-Commercial Use License](LICENSE).
+
+- ✅ Personal learning and research
+- ✅ Personal non-commercial use
+- ❌ Commercial use (requires authorization)
+- ❌ Redistribution
+
+For commercial licensing inquiries, please contact the author.
