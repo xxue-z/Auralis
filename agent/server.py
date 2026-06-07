@@ -22,6 +22,7 @@ from tts.clone import VoiceCloner
 from tts.generator import VoiceGenerator
 from memory.conversation_store import ConversationStore
 from memory.audit_store import AuditStore
+from memory.event_store import EventStore
 
 logging.basicConfig(
     level=logging.INFO,
@@ -37,6 +38,7 @@ voice_cloner = VoiceCloner()
 voice_generator = VoiceGenerator()
 conversation_store = ConversationStore()
 audit_store = AuditStore()
+event_store = EventStore()
 
 # 等待前端返回 capability 执行结果的回调
 pending_results: dict[str, asyncio.Future] = {}
@@ -84,7 +86,11 @@ async def handle_message(ws: WebSocketServerProtocol, raw: str):
 async def handle_user_message(ws: WebSocketServerProtocol, data: dict):
     content = data.get("content", "")
     message_id = data.get("id", "")
+    session_id = _get_session_id(ws)
     logger.info(f"用户消息: {content}")
+
+    # 记录用户输入事件
+    event_store.record("user_action", "chat_input", {"content": content}, session_id=session_id)
 
     # 1. 先尝试规则匹配（快速路径）
     result = intent_parser.parse(content)
