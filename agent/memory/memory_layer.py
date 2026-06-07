@@ -129,12 +129,12 @@ class MemoryLayer:
         return "\n".join(context_parts) if context_parts else ""
 
     def _extract_entities(self, text: str) -> list[str]:
-        """从文本中提取可能的实体名（简单规则）"""
+        """从文本中提取可能的实体名（至少 3 个字符才匹配，避免短 ID 误匹配）"""
         entities = []
-        # 检查图中已有的节点是否出现在文本中
-        for node in self.graph._data["nodes"]:
-            if node["id"] in text:
-                entities.append(node["id"])
+        MIN_ID_LENGTH = 3
+        for node_id in self.graph.get_all_node_ids():
+            if len(node_id) >= MIN_ID_LENGTH and node_id in text:
+                entities.append(node_id)
         return entities
 
     def record_user_action(

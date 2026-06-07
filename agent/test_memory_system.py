@@ -80,8 +80,8 @@ class TestSemanticStore:
         results = store.search("完全不相关的内容xyz")
         assert results == []
 
-    def test_store_with_metadata(self, store):
-        """带元数据存储"""
+    def test_store_with_category(self, store):
+        """带分类存储"""
         mid = store.store(
             "用户偏好深色主题",
             memory_type="preference",

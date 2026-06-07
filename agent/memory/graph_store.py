@@ -2,6 +2,8 @@
 
 import json
 import logging
+import os
+import tempfile
 from collections import deque
 from pathlib import Path
 from typing import Any
@@ -33,10 +35,20 @@ class GraphStore:
         return {"nodes": [], "edges": []}
 
     def _save(self):
-        """保存图数据"""
+        """保存图数据（原子写入：先写临时文件再替换）"""
         self._path.parent.mkdir(parents=True, exist_ok=True)
-        with open(self._path, "w", encoding="utf-8") as f:
-            json.dump(self._data, f, ensure_ascii=False, indent=2)
+        try:
+            fd, tmp_path = tempfile.mkstemp(
+                dir=self._path.parent, suffix=".tmp", prefix="graph_"
+            )
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump(self._data, f, ensure_ascii=False, indent=2)
+            os.replace(tmp_path, self._path)
+        except Exception:
+            # 清理临时文件
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+            raise
 
     # === 节点操作 ===
 
@@ -52,8 +64,10 @@ class GraphStore:
         # 检查是否已存在
         existing = self.get_node(node_id)
         if existing:
-            # 更新属性
-            existing.update(properties or {})
+            # 更新类型和属性
+            existing["type"] = node_type
+            if properties:
+                existing["properties"].update(properties)
         else:
             self._data["nodes"].append({
                 "id": node_id,
@@ -72,6 +86,10 @@ class GraphStore:
     def get_nodes_by_type(self, node_type: str) -> list[dict]:
         """按类型获取节点"""
         return [n for n in self._data["nodes"] if n["type"] == node_type]
+
+    def get_all_node_ids(self) -> list[str]:
+        """获取所有节点 ID"""
+        return [n["id"] for n in self._data["nodes"]]
 
     def remove_node(self, node_id: str) -> bool:
         """删除节点及其所有边"""
