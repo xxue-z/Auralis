@@ -20,6 +20,7 @@ from settings.ai_handler import (
 from tts.router import TTSRouter
 from tts.clone import VoiceCloner
 from tts.generator import VoiceGenerator
+from memory.conversation_store import ConversationStore
 
 logging.basicConfig(
     level=logging.INFO,
@@ -33,6 +34,7 @@ model_router = ModelRouter()
 tts_router = TTSRouter()
 voice_cloner = VoiceCloner()
 voice_generator = VoiceGenerator()
+conversation_store = ConversationStore()
 
 # 等待前端返回 capability 执行结果的回调
 pending_results: dict[str, asyncio.Future] = {}
@@ -40,10 +42,9 @@ pending_results: dict[str, asyncio.Future] = {}
 # 用户设置缓存（前端同步过来的）
 user_settings: dict = {}
 
-# 对话历史（按 WebSocket 连接维护，内存中）
-# key = id(ws)（连接级别的唯一标识），value = 消息列表
-conversation_history: dict[int, list[dict]] = {}
-MAX_HISTORY = 20  # 每个 session 最多保留的消息数
+# WebSocket 连接 → session_id 映射
+ws_session_map: dict[int, str] = {}
+MAX_HISTORY = 20  # 每个 session 加载的历史消息数
 
 
 async def handle_message(ws: WebSocketServerProtocol, raw: str):
@@ -205,12 +206,11 @@ async def _execute_capabilities(ws: WebSocketServerProtocol, message_id: str, re
 
 async def _handle_with_llm(ws: WebSocketServerProtocol, message_id: str, user_input: str):
     """使用 LLM 处理消息（支持 Function Calling）"""
-    # 按 WebSocket 连接维护对话历史
-    session_id = id(ws)
-    if session_id not in conversation_history:
-        conversation_history[session_id] = []
+    # 获取或创建 session
+    session_id = _get_session_id(ws)
 
-    history = conversation_history[session_id]
+    # 从持久化存储加载历史
+    history = conversation_store.get_history(session_id, limit=MAX_HISTORY)
 
     # 构建系统提示词
     locale = user_settings.get("locale", "zh-CN")
@@ -230,15 +230,14 @@ async def _handle_with_llm(ws: WebSocketServerProtocol, message_id: str, user_in
         # 解析 LLM 返回
         if isinstance(llm_result, dict) and llm_result.get("tool_calls"):
             # LLM 要求调用工具
-            await _handle_llm_tool_calls(ws, message_id, user_input, llm_result, history)
+            await _handle_llm_tool_calls(ws, message_id, user_input, llm_result, session_id)
         else:
             # 纯文本回复
             reply = llm_result if isinstance(llm_result, str) else str(llm_result)
             await send_text_response(ws, message_id, reply)
-            # 更新对话历史
-            history.append({"role": "user", "content": user_input})
-            history.append({"role": "assistant", "content": reply})
-            _trim_history(history)
+            # 持久化对话
+            conversation_store.save_message(session_id, "user", user_input)
+            conversation_store.save_message(session_id, "assistant", reply)
 
     except Exception as e:
         logger.error(f"LLM 调用失败: {e}", exc_info=True)
@@ -258,7 +257,7 @@ async def _handle_with_llm(ws: WebSocketServerProtocol, message_id: str, user_in
 
 async def _handle_llm_tool_calls(
     ws: WebSocketServerProtocol, message_id: str,
-    user_input: str, llm_result: dict, history: list[dict],
+    user_input: str, llm_result: dict, session_id: str,
 ):
     """处理 LLM 返回的 tool_calls"""
     tool_calls = llm_result["tool_calls"]
@@ -268,18 +267,15 @@ async def _handle_llm_tool_calls(
     if assistant_content:
         await send_text_response(ws, message_id, assistant_content)
 
-    # 更新对话历史
-    history.append({"role": "user", "content": user_input})
-    history.append({
-        "role": "assistant",
-        "content": assistant_content,
-        "tool_calls": [
-            {"id": tc["id"], "type": "function", "function": {"name": tc["name"], "arguments": tc["arguments"]}}
-            for tc in tool_calls
-        ],
-    })
+    # 持久化用户消息和 assistant 回复（含 tool_calls）
+    tool_calls_for_storage = [
+        {"id": tc["id"], "type": "function", "function": {"name": tc["name"], "arguments": tc["arguments"]}}
+        for tc in tool_calls
+    ]
+    conversation_store.save_message(session_id, "user", user_input)
+    conversation_store.save_message(session_id, "assistant", assistant_content, tool_calls=tool_calls_for_storage)
 
-    # 执行每个 tool_call
+    # 执行每个 tool_call 并持久化结果
     for tc in tool_calls:
         tool_name = tc["name"]
         try:
@@ -292,17 +288,12 @@ async def _handle_llm_tool_calls(
         # 根据工具名执行对应操作
         tool_result = await _execute_tool(tool_name, args, ws, message_id)
 
-        # 将工具结果加入对话历史
-        history.append({
-            "role": "tool",
-            "tool_call_id": tc["id"],
-            "content": json.dumps(tool_result, ensure_ascii=False) if isinstance(tool_result, dict) else str(tool_result),
-        })
+        # 持久化工具结果
+        content = json.dumps(tool_result, ensure_ascii=False) if isinstance(tool_result, dict) else str(tool_result)
+        conversation_store.save_message(session_id, "tool", content, tool_call_id=tc["id"])
 
-    _trim_history(history)
-
-    # 总是让 LLM 基于工具执行结果生成最终回复
-    await _llm_summarize_results(ws, message_id, history)
+    # 让 LLM 基于工具执行结果生成最终回复
+    await _llm_summarize_results(ws, message_id, session_id)
 
 
 async def _execute_tool(tool_name: str, args: dict, ws: WebSocketServerProtocol, message_id: str) -> dict:
@@ -387,16 +378,19 @@ async def _execute_tool(tool_name: str, args: dict, ws: WebSocketServerProtocol,
     return {"success": False, "error": f"未知工具: {tool_name}"}
 
 
-async def _llm_summarize_results(ws: WebSocketServerProtocol, message_id: str, history: list[dict]):
+async def _llm_summarize_results(ws: WebSocketServerProtocol, message_id: str, session_id: str):
     """让 LLM 基于工具执行结果生成自然语言回复"""
     locale = user_settings.get("locale", "zh-CN")
     system_prompt = build_system_prompt(locale)
+
+    # 从 DB 加载历史
+    history = conversation_store.get_history(session_id, limit=MAX_HISTORY)
     messages = [{"role": "system", "content": system_prompt}]
     messages.extend(history)
 
-    # 添加 synthetic user prompt 到 history 以保持对话格式正确
+    # 添加 synthetic user prompt（持久化以保持对话格式正确）
     summarize_prompt = "请根据以上工具执行结果，用简洁的中文回复用户。"
-    history.append({"role": "user", "content": summarize_prompt})
+    conversation_store.save_message(session_id, "user", summarize_prompt)
     messages.append({"role": "user", "content": summarize_prompt})
 
     try:
@@ -406,23 +400,26 @@ async def _llm_summarize_results(ws: WebSocketServerProtocol, message_id: str, h
             reply = reply.get("content") or ""
         if isinstance(reply, str) and reply:
             await send_text_response(ws, message_id, reply)
-            history.append({"role": "assistant", "content": reply})
+            conversation_store.save_message(session_id, "assistant", reply)
         else:
             # LLM 未返回有效回复，发送兜底文本
-            await send_text_response(ws, message_id, "操作已完成。")
-            history.append({"role": "assistant", "content": "操作已完成。"})
+            fallback = "操作已完成。"
+            await send_text_response(ws, message_id, fallback)
+            conversation_store.save_message(session_id, "assistant", fallback)
     except Exception as e:
         logger.warning(f"LLM 总结失败: {e}")
         # 异常时发送兜底文本，确保用户总能收到反馈
         fallback = "操作已完成。"
         await send_text_response(ws, message_id, fallback)
-        history.append({"role": "assistant", "content": fallback})
+        conversation_store.save_message(session_id, "assistant", fallback)
 
 
-def _trim_history(history: list[dict]):
-    """裁剪对话历史，保留最近 N 条"""
-    while len(history) > MAX_HISTORY:
-        history.pop(0)
+def _get_session_id(ws: WebSocketServerProtocol) -> str:
+    """获取或创建 WebSocket 连接对应的 session_id"""
+    ws_key = id(ws)
+    if ws_key not in ws_session_map:
+        ws_session_map[ws_key] = str(uuid.uuid4())[:12]
+    return ws_session_map[ws_key]
 
 
 async def handle_capability_result(ws: WebSocketServerProtocol, data: dict):
@@ -678,14 +675,15 @@ async def handler(ws: WebSocketServerProtocol):
         pass
     finally:
         connected_clients.discard(ws)
-        # 清理该连接的对话历史
-        session_id = id(ws)
-        conversation_history.pop(session_id, None)
+        # 清理 session 映射（对话历史已持久化到 DB，无需清理）
+        ws_session_map.pop(id(ws), None)
         logger.info(f"客户端已断开 (共 {len(connected_clients)} 个)")
 
 
 async def main():
     config.ensure_dirs()
+    # 启动时清理过期对话（30 天）
+    conversation_store.cleanup_old(days=30)
     logger.info(f"Auralis Agent 启动中...")
     logger.info(f"WebSocket 监听: ws://{config.WS_HOST}:{config.WS_PORT}")
 
