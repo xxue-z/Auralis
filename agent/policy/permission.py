@@ -39,6 +39,13 @@ class PermissionChecker:
         Returns:
             PermissionResult
         """
+        # 系统关键路径检查（优先于风险等级，提供更精确的拒绝原因）
+        if self._has_system_path(payload):
+            return PermissionResult(
+                False,
+                "禁止操作系统关键路径",
+            )
+
         # 高风险操作需要用户确认（不允许自动执行）
         if risk_level == RiskLevel.HIGH:
             return PermissionResult(
@@ -46,20 +53,13 @@ class PermissionChecker:
                 f"高风险操作 '{capability_type}' 需要用户确认",
             )
 
-        # 检查系统关键路径
-        if self._has_system_path(payload):
-            return PermissionResult(
-                False,
-                f"禁止操作系统关键路径",
-            )
-
         logger.info(f"权限检查通过: {capability_type}")
         return PermissionResult(True)
 
     def _has_system_path(self, payload: dict[str, Any]) -> bool:
         """检查 payload 中是否包含系统关键路径"""
-        # 检查常见路径字段
-        for key in ("path", "from", "to"):
+        # 检查所有可能的路径字段
+        for key in ("path", "from", "to", "scope"):
             path = payload.get(key, "")
             if path and _is_system_path(path):
                 return True

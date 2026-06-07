@@ -9,8 +9,8 @@ logger = logging.getLogger("auralis.policy.risk")
 
 class RiskLevel(Enum):
     """风险等级"""
-    LOW = "low"         # 0.0 ~ 0.3 — 自动执行
-    MEDIUM = "medium"   # 0.3 ~ 0.7 — 建议确认
+    LOW = "low"         # 0.0 ~ 0.3 (不含) — 自动执行
+    MEDIUM = "medium"   # 0.3 ~ 0.7 (不含) — 建议确认
     HIGH = "high"       # 0.7 ~ 1.0 — 需要确认
 
 
@@ -101,9 +101,12 @@ class RiskEngine:
 
         # 文件操作：系统路径 → 高风险
         if capability_type.startswith("file."):
-            path = payload.get("path", "")
-            if path and _is_system_path(path):
-                score = max(score, 0.9)
+            # 检查所有可能的路径字段
+            for key in ("path", "from", "to", "scope"):
+                path = payload.get(key, "")
+                if path and _is_system_path(path):
+                    score = max(score, 0.9)
+                    break
 
             # 删除递归 → 更高风险
             if capability_type == "file.delete" and payload.get("recursive"):

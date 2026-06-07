@@ -107,8 +107,12 @@ class ConfirmationManager:
                 return f"{risk_label}：确定要删除文件吗？\n路径: {path}"
             elif capability_type == "file.write":
                 return f"{risk_label}：确定要写入文件吗？\n路径: {path}"
+            elif capability_type == "file.copy":
+                return f"{risk_label}：确定要复制文件吗？\n从: {payload.get('from', '')}\n到: {payload.get('to', '')}"
             elif capability_type == "file.move":
                 return f"{risk_label}：确定要移动文件吗？\n从: {payload.get('from', '')}\n到: {payload.get('to', '')}"
+            elif capability_type == "file.search":
+                return f"{risk_label}：确定要在以下目录搜索吗？\n范围: {payload.get('scope', '')}"
             else:
                 return f"{risk_label}：即将执行 {op_name}\n路径: {path}"
 
