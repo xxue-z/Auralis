@@ -197,17 +197,35 @@ async def _handle_settings_change(ws: WebSocketServerProtocol, message_id: str, 
 
 
 async def _execute_capabilities(ws: WebSocketServerProtocol, message_id: str, result: dict):
-    """执行 capability 操作（含风险评估）"""
-    # 风险评估
+    """执行 capability 操作（含风险评估：低/中风险直接执行，高风险暂停确认）"""
+    # 风险评估：分离安全和危险操作
+    safe_caps = []
+    dangerous_caps = []
     for cap in result["capabilities"]:
         cap_type = cap.get("capability", {}).get("type", "unknown")
         cap_payload = cap.get("capability", {}).get("payload", {})
         risk_level, risk_score = risk_engine.evaluate(cap_type, cap_payload)
         if risk_level.value == "high":
+            dangerous_caps.append((cap, cap_type, cap_payload, risk_level))
+        else:
+            safe_caps.append(cap)
+
+    # 先执行安全操作
+    if safe_caps:
+        safe_result = dict(result)
+        safe_result["capabilities"] = safe_caps
+        await _execute_capability_batch(ws, message_id, safe_result)
+
+    # 高风险操作暂停确认
+    if dangerous_caps:
+        for cap, cap_type, cap_payload, risk_level in dangerous_caps:
             confirm_info = confirm_manager.decide(cap_type, cap_payload, risk_level)
             await send_text_response(ws, message_id, confirm_info.message)
-            return  # 高风险操作暂停，等待用户确认
+        return  # 高风险操作等待用户确认
 
+
+async def _execute_capability_batch(ws: WebSocketServerProtocol, message_id: str, result: dict):
+    """执行一批 capability 操作（已通过风险评估）"""
     request_id = str(uuid.uuid4())[:8]
     logger.info(f"发送 capability 请求: {request_id}, {len(result['capabilities'])} 个操作")
 
