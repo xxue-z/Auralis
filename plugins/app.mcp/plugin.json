@@ -1,0 +1,11 @@
+{
+  "name": "app.mcp",
+  "version": "1.0.0",
+  "description": "应用管理插件 — 启动、关闭、列出运行中的应用",
+  "author": "Auralis Team",
+  "capabilities": [
+    "app.launch",
+    "app.close",
+    "app.list"
+  ]
+}
