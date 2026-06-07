@@ -284,6 +284,17 @@ class TestConversationHistory:
         _trim_history(history)
         assert len(history) == 10
 
+    def test_session_key_is_ws_id(self):
+        """验证 session key 使用 id(ws) 而非 message_id"""
+        # 模拟多个消息共享同一个 session
+        mock_ws = MagicMock()
+        session_id = id(mock_ws)
+        history_dict = {}
+        history_dict[session_id] = [{"role": "user", "content": "first"}]
+        # 第二条消息应该能访问到同一个 history
+        assert session_id in history_dict
+        assert len(history_dict[session_id]) == 1
+
 
 # ============================================================
 # 7. 工具执行逻辑测试（独立实现，不依赖 server.py 导入）

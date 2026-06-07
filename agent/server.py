@@ -40,8 +40,9 @@ pending_results: dict[str, asyncio.Future] = {}
 # 用户设置缓存（前端同步过来的）
 user_settings: dict = {}
 
-# 对话历史（按 session 维护，内存中）
-conversation_history: dict[str, list[dict]] = {}
+# 对话历史（按 WebSocket 连接维护，内存中）
+# key = id(ws)（连接级别的唯一标识），value = 消息列表
+conversation_history: dict[int, list[dict]] = {}
 MAX_HISTORY = 20  # 每个 session 最多保留的消息数
 
 
@@ -204,11 +205,12 @@ async def _execute_capabilities(ws: WebSocketServerProtocol, message_id: str, re
 
 async def _handle_with_llm(ws: WebSocketServerProtocol, message_id: str, user_input: str):
     """使用 LLM 处理消息（支持 Function Calling）"""
-    # 获取或创建对话历史
-    if message_id not in conversation_history:
-        conversation_history[message_id] = []
+    # 按 WebSocket 连接维护对话历史
+    session_id = id(ws)
+    if session_id not in conversation_history:
+        conversation_history[session_id] = []
 
-    history = conversation_history[message_id]
+    history = conversation_history[session_id]
 
     # 构建系统提示词
     locale = user_settings.get("locale", "zh-CN")
@@ -247,7 +249,10 @@ async def _handle_with_llm(ws: WebSocketServerProtocol, message_id: str, user_in
             "• 扫描桌面文件\n"
             "• 打开记事本\n"
             "• 查看系统信息\n"
-            "• 打开设置"
+            "• 列出运行中的应用\n"
+            "• 打开设置\n"
+            "• 把语言改成中文\n"
+            "• 我现在的设置是什么"
         )
 
 
@@ -296,9 +301,8 @@ async def _handle_llm_tool_calls(
 
     _trim_history(history)
 
-    # 如果有多个 tool_call，让 LLM 基于结果生成最终回复
-    if len(tool_calls) > 1 or tool_calls[0]["name"] == "execute_capability":
-        await _llm_summarize_results(ws, message_id, history)
+    # 总是让 LLM 基于工具执行结果生成最终回复
+    await _llm_summarize_results(ws, message_id, history)
 
 
 async def _execute_tool(tool_name: str, args: dict, ws: WebSocketServerProtocol, message_id: str) -> dict:
@@ -322,6 +326,16 @@ async def _execute_tool(tool_name: str, args: dict, ws: WebSocketServerProtocol,
             return {"success": False, "error": "未提供修改内容"}
         change_result = handle_settings_change(changes)
         ready = [r for r in change_result["results"] if r.get("success")]
+        needs_confirm = [r for r in change_result["results"] if r.get("needs_confirm")]
+
+        # 如果有需要确认的项，包含在结果中让 LLM 告知用户
+        if needs_confirm and not ready:
+            return {
+                "success": False,
+                "needs_confirm": [r["message"] for r in needs_confirm],
+                "error": "以下设置需要确认：" + "；".join(r["message"] for r in needs_confirm),
+            }
+
         if not ready:
             return {"success": False, "results": change_result["results"]}
         # 发给前端应用
@@ -379,15 +393,30 @@ async def _llm_summarize_results(ws: WebSocketServerProtocol, message_id: str, h
     system_prompt = build_system_prompt(locale)
     messages = [{"role": "system", "content": system_prompt}]
     messages.extend(history)
-    messages.append({"role": "user", "content": "请根据以上工具执行结果，用简洁的中文回复用户。"})
+
+    # 添加 synthetic user prompt 到 history 以保持对话格式正确
+    summarize_prompt = "请根据以上工具执行结果，用简洁的中文回复用户。"
+    history.append({"role": "user", "content": summarize_prompt})
+    messages.append({"role": "user", "content": summarize_prompt})
 
     try:
         reply = await model_router.chat(messages, user_settings, stream=False)
+        # 处理可能的 dict 返回（LLM 不应再调用工具，但防御性处理）
+        if isinstance(reply, dict):
+            reply = reply.get("content") or ""
         if isinstance(reply, str) and reply:
             await send_text_response(ws, message_id, reply)
             history.append({"role": "assistant", "content": reply})
+        else:
+            # LLM 未返回有效回复，发送兜底文本
+            await send_text_response(ws, message_id, "操作已完成。")
+            history.append({"role": "assistant", "content": "操作已完成。"})
     except Exception as e:
         logger.warning(f"LLM 总结失败: {e}")
+        # 异常时发送兜底文本，确保用户总能收到反馈
+        fallback = "操作已完成。"
+        await send_text_response(ws, message_id, fallback)
+        history.append({"role": "assistant", "content": fallback})
 
 
 def _trim_history(history: list[dict]):
@@ -649,6 +678,9 @@ async def handler(ws: WebSocketServerProtocol):
         pass
     finally:
         connected_clients.discard(ws)
+        # 清理该连接的对话历史
+        session_id = id(ws)
+        conversation_history.pop(session_id, None)
         logger.info(f"客户端已断开 (共 {len(connected_clients)} 个)")
 
 
