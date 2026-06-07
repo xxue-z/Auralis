@@ -187,6 +187,35 @@ SETTINGS_SCHEMA: dict[str, dict[str, Any]] = {
         "label": "自动切换", "description": "云端不可用时自动切换到本地模型",
         "ai_editable": True, "confirm_required": False,
     },
+
+    # ============ 通知设置 ============
+    "notifications.enabled": {
+        "type": "boolean", "default": True,
+        "label": "启用通知", "description": "显示 AI 建议和提醒的通知",
+        "ai_editable": True, "confirm_required": False,
+    },
+    "notifications.sound": {
+        "type": "boolean", "default": True,
+        "label": "通知声音", "description": "显示通知时播放提示音",
+        "ai_editable": True, "confirm_required": False,
+    },
+
+    # ============ 高级设置 ============
+    "advanced.debug_mode": {
+        "type": "boolean", "default": False,
+        "label": "调试模式", "description": "启用调试日志和开发者工具",
+        "ai_editable": True, "confirm_required": False,
+    },
+    "advanced.auto_update": {
+        "type": "boolean", "default": True,
+        "label": "自动更新", "description": "自动检查并安装更新",
+        "ai_editable": True, "confirm_required": False,
+    },
+    "advanced.memory_retention_days": {
+        "type": "number", "default": 90, "min": 7, "max": 365, "step": 7,
+        "label": "记忆保留天数", "description": "对话和事件记忆的保留天数",
+        "ai_editable": True, "confirm_required": False,
+    },
 }
 
 
