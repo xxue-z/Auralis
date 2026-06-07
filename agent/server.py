@@ -23,6 +23,8 @@ from tts.generator import VoiceGenerator
 from memory.conversation_store import ConversationStore
 from memory.audit_store import AuditStore
 from memory.event_store import EventStore
+from planner.dag import TaskGraph, build_planning_prompt, parse_planning_result
+from planner.executor import TaskExecutor, summarize_results
 
 logging.basicConfig(
     level=logging.INFO,
@@ -295,7 +297,7 @@ async def _handle_llm_tool_calls(
     ws: WebSocketServerProtocol, message_id: str,
     user_input: str, llm_result: dict, session_id: str,
 ):
-    """处理 LLM 返回的 tool_calls"""
+    """处理 LLM 返回的 tool_calls（支持 DAG 并行执行）"""
     tool_calls = llm_result["tool_calls"]
     assistant_content = llm_result.get("content") or ""
 
@@ -313,39 +315,108 @@ async def _handle_llm_tool_calls(
         {"role": "assistant", "content": assistant_content, "tool_calls": tool_calls_for_storage},
     ])
 
-    # 执行每个 tool_call 并持久化结果
+    # 单个 tool_call 直接执行（保持原有逻辑）
+    if len(tool_calls) == 1:
+        await _execute_single_tool_call(ws, message_id, tool_calls[0], session_id)
+    else:
+        # 多个 tool_call → 使用 DAG 执行引擎（并行执行无依赖的任务）
+        await _execute_tool_calls_dag(ws, message_id, tool_calls, session_id)
+
+    # 让 LLM 基于工具执行结果生成最终回复
+    await _llm_summarize_results(ws, message_id, session_id)
+
+
+async def _execute_single_tool_call(
+    ws: WebSocketServerProtocol, message_id: str,
+    tc: dict, session_id: str,
+):
+    """执行单个 tool_call"""
+    tool_name = tc["name"]
+    try:
+        args = json.loads(tc["arguments"]) if isinstance(tc["arguments"], str) else tc["arguments"]
+    except json.JSONDecodeError:
+        args = {}
+
+    logger.info(f"执行工具: {tool_name}({args})")
+
+    import time
+    start_time = time.monotonic()
+    tool_result = await _execute_tool(tool_name, args, ws, message_id)
+    duration_ms = int((time.monotonic() - start_time) * 1000)
+
+    audit_store.log(
+        capability_type=tool_name,
+        session_id=session_id,
+        risk_level="low",
+        result="success" if tool_result.get("success") else "error",
+        error_message=tool_result.get("error"),
+        duration_ms=duration_ms,
+        details={"args": args},
+    )
+
+    content = json.dumps(tool_result, ensure_ascii=False) if isinstance(tool_result, dict) else str(tool_result)
+    conversation_store.save_message(session_id, "tool", content, tool_call_id=tc["id"])
+
+
+async def _execute_tool_calls_dag(
+    ws: WebSocketServerProtocol, message_id: str,
+    tool_calls: list[dict], session_id: str,
+):
+    """使用 DAG 引擎并行执行多个 tool_calls"""
+    # 构建 TaskGraph（tool_calls 之间无显式依赖，可并行执行）
+    graph = TaskGraph()
+
     for tc in tool_calls:
-        tool_name = tc["name"]
         try:
             args = json.loads(tc["arguments"]) if isinstance(tc["arguments"], str) else tc["arguments"]
         except json.JSONDecodeError:
             args = {}
 
-        logger.info(f"执行工具: {tool_name}({args})")
+        node = TaskNode(
+            name=tc["name"],
+            tool_name=tc["name"],
+            args=args,
+            task_id=tc["id"][:8],
+        )
+        graph.add_node(node)
 
-        # 根据工具名执行对应操作
-        import time
-        start_time = time.monotonic()
-        tool_result = await _execute_tool(tool_name, args, ws, message_id)
-        duration_ms = int((time.monotonic() - start_time) * 1000)
+    # 发送初始进度
+    await ws.send(json.dumps({
+        "type": "task_progress",
+        "graph": graph.to_dict(),
+    }))
 
-        # 审计日志
+    # 进度回调
+    async def on_progress(progress: dict):
+        await ws.send(json.dumps({"type": "task_progress", **progress}))
+
+    # 创建执行器
+    async def tool_executor(tool_name: str, args: dict) -> dict:
+        return await _execute_tool(tool_name, args, ws, message_id)
+
+    executor = TaskExecutor(tool_executor=tool_executor, on_progress=on_progress)
+    import time
+    start_time = time.monotonic()
+    await executor.execute(graph)
+    duration_ms = int((time.monotonic() - start_time) * 1000)
+
+    # 审计日志 + 持久化结果
+    for node in graph.nodes.values():
+        result = node.result or {"success": False, "error": node.error}
         audit_store.log(
-            capability_type=tool_name,
+            capability_type=node.tool_name,
             session_id=session_id,
             risk_level="low",
-            result="success" if tool_result.get("success") else "error",
-            error_message=tool_result.get("error"),
+            result="success" if node.status.value == "completed" else "error",
+            error_message=node.error,
             duration_ms=duration_ms,
-            details={"args": args},
+            details={"args": node.args},
         )
+        content = json.dumps(result, ensure_ascii=False) if isinstance(result, dict) else str(result)
+        conversation_store.save_message(session_id, "tool", content, tool_call_id=node.id)
 
-        # 持久化工具结果
-        content = json.dumps(tool_result, ensure_ascii=False) if isinstance(tool_result, dict) else str(tool_result)
-        conversation_store.save_message(session_id, "tool", content, tool_call_id=tc["id"])
-
-    # 让 LLM 基于工具执行结果生成最终回复
-    await _llm_summarize_results(ws, message_id, session_id)
+    # 发送完成状态
+    await ws.send(json.dumps({"type": "task_progress", "graph": graph.to_dict(), "status": "done"}))
 
 
 async def _execute_tool(tool_name: str, args: dict, ws: WebSocketServerProtocol, message_id: str) -> dict:
