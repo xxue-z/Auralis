@@ -1,7 +1,9 @@
 import { useState, useRef } from "react";
-import { cloneVoice, generateVoice } from "../../services/voice";
-import { playAudio } from "../../services/audio";
+import { cloneVoice, generateVoice, previewVoice } from "../../services/voice";
+import { playAudio, stopAudio } from "../../services/audio";
 import type { OnboardingData } from "./Wizard";
+
+let _previewSeq = 0; // 全局递增序列号，用于丢弃过期请求
 
 interface Props {
   data: OnboardingData;
@@ -19,15 +21,50 @@ const VOICES = [
 
 export function StepVoice({ data, onChange }: Props) {
   const [playing, setPlaying] = useState<string | null>(null);
+  const [previewing, setPreviewing] = useState<string | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
   const [description, setDescription] = useState("");
   const [generating, setGenerating] = useState(false);
   const [cloning, setCloning] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isZh = data.locale === "zh-CN";
 
-  const handlePreview = (voiceId: string) => {
-    setPlaying(voiceId);
-    setTimeout(() => setPlaying(null), 2000);
+  const handlePreview = async (voiceId: string) => {
+    setPreviewError(null);
+
+    // 如果正在播放同一个音线，停止播放
+    if (playing === voiceId) {
+      stopAudio();
+      setPlaying(null);
+      return;
+    }
+
+    // 停止之前的播放
+    if (playing) {
+      stopAudio();
+      setPlaying(null);
+    }
+
+    // 递增序列号，丢弃过期请求的结果
+    const seq = ++_previewSeq;
+    setPreviewing(voiceId);
+    try {
+      const audio = await previewVoice(voiceId);
+      // 已被更新的请求覆盖，丢弃结果
+      if (seq !== _previewSeq) return;
+      setPreviewing(null);
+      if (audio) {
+        setPlaying(voiceId);
+        await playAudio(audio, undefined, () => setPlaying(null));
+      } else {
+        setPreviewError(isZh ? "试听失败，请确认 Agent 已启动" : "Preview failed. Is the Agent running?");
+        setTimeout(() => setPreviewError(null), 4000);
+      }
+    } catch {
+      if (seq !== _previewSeq) return;
+      setPreviewing(null);
+      setPlaying(null);
+    }
   };
 
   // AI 生成音线
@@ -71,10 +108,10 @@ export function StepVoice({ data, onChange }: Props) {
       {/* 预设音线 */}
       <div className="grid grid-cols-2 gap-2">
         {VOICES.map((voice) => (
-          <button
+          <div
             key={voice.id}
             onClick={() => onChange({ voiceId: voice.id })}
-            className={`p-3 rounded-xl border-2 text-left transition-all ${
+            className={`p-3 rounded-xl border-2 text-left transition-all cursor-pointer ${
               data.voiceId === voice.id
                 ? "border-primary-500 bg-primary-50"
                 : "border-gray-100 hover:border-gray-200"
@@ -92,13 +129,25 @@ export function StepVoice({ data, onChange }: Props) {
                 e.stopPropagation();
                 handlePreview(voice.id);
               }}
-              className="mt-2 text-xs text-primary-500 hover:text-primary-600"
+              disabled={previewing !== null && previewing !== voice.id}
+              className="mt-2 text-xs text-primary-500 hover:text-primary-600 disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              {playing === voice.id ? "🔊 播放中..." : "▶ 试听"}
+              {playing === voice.id
+                ? "🔊 播放中..."
+                : previewing === voice.id
+                ? "⏳ 生成中..."
+                : "▶ 试听"}
             </button>
-          </button>
+          </div>
         ))}
       </div>
+
+      {/* 试听错误提示 */}
+      {previewError && (
+        <div className="text-xs text-center py-1.5 px-3 bg-amber-50 text-amber-600 rounded-lg border border-amber-200">
+          ⚠️ {previewError}
+        </div>
+      )}
 
       {/* 上传音频克隆 */}
       <div className="border-t border-gray-100 pt-3">

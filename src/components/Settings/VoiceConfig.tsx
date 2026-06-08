@@ -76,6 +76,32 @@ export function VoiceConfig() {
 
       {settings["voice.enabled"] && (
         <>
+          {/* TTS 引擎选择 */}
+          <div>
+            <label className="text-xs text-gray-500 block mb-2">TTS 引擎</label>
+            <div className="grid grid-cols-2 gap-1.5">
+              {[
+                { id: "edge", name: "Edge TTS", desc: "免费" },
+                { id: "xiaomi", name: "小米 MiMo", desc: "云端" },
+                { id: "openai", name: "OpenAI", desc: "付费" },
+                { id: "kokoro", name: "Kokoro", desc: "本地测试版" },
+              ].map((e) => (
+                <button
+                  key={e.id}
+                  onClick={() => setSetting("voice.provider", e.id)}
+                  className={`p-2 rounded-lg text-xs text-left transition-all ${
+                    settings["voice.provider"] === e.id
+                      ? "bg-primary-50 border border-primary-300 text-primary-700"
+                      : "bg-gray-50 border border-gray-100 text-gray-600 hover:bg-gray-100"
+                  }`}
+                >
+                  <div className="font-medium">{e.name}</div>
+                  <div className="text-[10px] opacity-60">{e.desc}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* 预设音线选择 */}
           <div>
             <label className="text-xs text-gray-500 block mb-2">预设音线</label>

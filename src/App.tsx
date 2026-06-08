@@ -6,8 +6,21 @@ import { Live2DViewer } from "./components/Character/Live2DViewer";
 import { SettingsPanel } from "./components/Settings/SettingsPanel";
 import { OnboardingWizard } from "./components/Onboarding/Wizard";
 import { useSettingsStore } from "./stores/settingsStore";
+import { useAgentStore } from "./stores/agentStore";
+import { wsService } from "./services/websocket";
+
+// 应用启动时立即连接 Agent WebSocket（引导页试听等功能需要）
+function useConnectAgent() {
+  const url = useAgentStore((s) => s.url);
+  useEffect(() => {
+    wsService.connect(url);
+  }, [url]);
+}
 
 function App() {
+  // 启动时连接 Agent WebSocket（引导页试听等功能依赖）
+  useConnectAgent();
+
   const [showChat, setShowChat] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const onboardingComplete = useSettingsStore((s) => s.settings["onboarding.complete"]);
@@ -65,10 +78,18 @@ function App() {
     return () => window.removeEventListener("agent-command", handler as EventListener);
   }, [openSettings]);
 
+  // 引导页窗口适配：首次安装时窗口需扩大以容纳引导页
+  useEffect(() => {
+    if (showOnboarding) {
+      resizeWindow(420, 620); // 引导页卡片 420px 宽 + 内边距
+    }
+  }, [showOnboarding, resizeWindow]);
+
   // 引导完成
   const handleOnboardingComplete = useCallback(() => {
     setShowOnboarding(false);
-  }, []);
+    resizeWindow(120, 160); // 引导结束后回到精灵尺寸
+  }, [resizeWindow]);
 
   return (
     <div className="fixed inset-0 overflow-hidden" style={{ background: "transparent" }}>

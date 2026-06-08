@@ -68,6 +68,8 @@ pub async fn resize_window(
         .map_err(|e| e.to_string())?;
     window.set_size(tauri::PhysicalSize::new(width as u32, height as u32))
         .map_err(|e| e.to_string())?;
+    // resize 后恢复置顶状态（Tauri 某些平台 resize 会丢失 alwaysOnTop）
+    window.set_always_on_top(true).ok();
 
     Ok(())
 }

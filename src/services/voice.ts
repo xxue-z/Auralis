@@ -57,6 +57,49 @@ export async function cloneVoice(
 }
 
 /**
+ * 试听音线：用指定 preset 合成一段短音频
+ */
+export async function previewVoice(
+  voiceId: string,
+): Promise<string | null> {
+  // 检查 WebSocket 是否已连接
+  if (!wsService.isConnected) {
+    console.warn("[Voice] WebSocket 未连接，无法试听");
+    return null;
+  }
+
+  console.log(`[Voice] 试听请求: voice_id=${voiceId}`);
+
+  const promise = new Promise<string | null>((resolve) => {
+    const handler = (data: any) => {
+      if (data.type === "voice_preview_result" && data.voice_id === voiceId) {
+        wsService.off("voice_preview_result", handler);
+        if (data.success && data.audio) {
+          console.log(`[Voice] 试听音频收到: ${data.audio.length} chars base64`);
+          resolve(data.audio);
+        } else {
+          console.warn(`[Voice] 试听失败:`, data.error || "无音频数据");
+          resolve(null);
+        }
+      }
+    };
+
+    wsService.on("voice_preview_result", handler);
+    const sent = wsService.send({
+      type: "voice_preview",
+      voice_id: voiceId,
+    });
+    if (!sent) {
+      wsService.off("voice_preview_result", handler);
+      console.warn("[Voice] 消息发送失败");
+      resolve(null);
+    }
+  });
+
+  return withTimeout(promise, 15000);
+}
+
+/**
  * AI 生成音线
  */
 export async function generateVoice(

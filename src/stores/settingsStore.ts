@@ -1,5 +1,13 @@
 import { create } from "zustand";
 import i18n from "../i18n";
+import { wsService } from "../services/websocket";
+
+// 同步设置到 Agent 后端
+function _syncToAgent(settings: Record<string, any>) {
+  try {
+    wsService.send({ type: "settings_update", settings });
+  } catch {}
+}
 
 // 所有设置项的默认值
 const DEFAULT_SETTINGS: Record<string, any> = {
@@ -38,7 +46,7 @@ const DEFAULT_SETTINGS: Record<string, any> = {
   // 语音
   "voice.enabled": false,
   "voice.preset_id": "sweet_female",
-  "voice.provider": "edge-tts",
+  "voice.provider": "edge",
   "voice.speed": 1.0,
   "voice.pitch": 1.0,
   "voice.custom_clone_id": "",
@@ -79,6 +87,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     if (key === "locale") {
       i18n.changeLanguage(value);
     }
+
+    // 实时同步到 Agent 后端（语音等设置需立即生效）
+    _syncToAgent(newSettings);
   },
 
   setSettings: (changes: Array<{ key: string; value: any }>) => {
@@ -91,6 +102,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     }
     localStorage.setItem("auralis-settings", JSON.stringify(newSettings));
     set({ settings: newSettings });
+
+    // 实时同步到 Agent 后端
+    _syncToAgent(newSettings);
   },
 
   getAllSettings: () => {

@@ -81,6 +81,8 @@ async def handle_message(ws: WebSocketServerProtocol, raw: str):
             await handle_voice_clone(ws, data)
         elif msg_type == "voice_generate":
             await handle_voice_generate(ws, data)
+        elif msg_type == "voice_preview":
+            await handle_voice_preview(ws, data)
         elif msg_type == "confirm_response":
             await handle_confirm_response(ws, data)
         else:
@@ -685,6 +687,48 @@ async def handle_voice_generate(ws: WebSocketServerProtocol, data: dict):
             "type": "voice_generate_result",
             "success": False,
             "error": str(e),
+        }))
+
+
+async def handle_voice_preview(ws: WebSocketServerProtocol, data: dict):
+    """处理音线试听请求：用指定音线合成一段短音频（含重试）"""
+    voice_id = data.get("voice_id", "neutral")
+    preview_text = data.get("text", "你好，这是试听音频。很高兴认识你！")
+    logger.info(f"音线试听请求: voice_id={voice_id}")
+
+    audio_data = None
+    last_error = None
+    for attempt in range(3):
+        try:
+            audio_data = await tts_router.synthesize(preview_text, voice_id, user_settings)
+            if audio_data:
+                break
+            # None 表示持久性失败（引擎不可用），不重试
+            last_error = "TTS 合成返回空"
+            break
+        except Exception as e:
+            last_error = str(e)
+            logger.warning(f"音线试听第 {attempt + 1} 次失败: {e}")
+            if attempt < 2:
+                import asyncio
+                await asyncio.sleep(0.5)
+
+    if audio_data:
+        audio_b64 = base64.b64encode(audio_data).decode()
+        logger.info(f"音线试听合成成功: voice_id={voice_id}, audio_size={len(audio_data)} bytes")
+        await ws.send(json.dumps({
+            "type": "voice_preview_result",
+            "success": True,
+            "voice_id": voice_id,
+            "audio": audio_b64,
+        }))
+    else:
+        logger.error(f"音线试听最终失败: voice_id={voice_id}, error={last_error}")
+        await ws.send(json.dumps({
+            "type": "voice_preview_result",
+            "success": False,
+            "voice_id": voice_id,
+            "error": last_error,
         }))
 
 

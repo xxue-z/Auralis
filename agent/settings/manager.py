@@ -91,9 +91,9 @@ SETTINGS_SCHEMA: dict[str, dict[str, Any]] = {
         "ai_editable": True, "confirm_required": False,
     },
     "voice.provider": {
-        "type": "enum", "default": "edge-tts",
-        "options": ["edge-tts", "openai", "piper"],
-        "label": "TTS 引擎", "description": "语音合成引擎（edge-tts 免费，openai 音质最好）",
+        "type": "enum", "default": "edge",
+        "options": ["edge", "openai", "xiaomi", "kokoro"],
+        "label": "TTS 引擎", "description": "语音合成引擎（edge 免费，xiaomi 小米 MiMo，kokoro 本地测试版）",
         "ai_editable": True, "confirm_required": True,
     },
     "voice.speed": {

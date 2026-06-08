@@ -43,8 +43,8 @@ export function OnboardingWizard({ onComplete }: { onComplete: () => void }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-primary-50 to-purple-50">
-      <div className="w-[420px] max-h-[90vh] bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-primary-50 to-purple-50" style={{ WebkitAppRegion: "drag" } as React.CSSProperties}>
+      <div className="w-[420px] max-h-[90vh] bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col" style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}>
         {/* 进度条 */}
         <div className="px-6 pt-6">
           <div className="flex gap-2">

@@ -10,7 +10,7 @@ class WebSocketService {
   private maxReconnectAttempts = 10;
 
   connect(url: string) {
-    if (this.ws?.readyState === WebSocket.OPEN) return;
+    if (this.ws?.readyState === WebSocket.OPEN || this.ws?.readyState === WebSocket.CONNECTING) return;
 
     useAgentStore.getState().setStatus("connecting");
     this.ws = new WebSocket(url);
@@ -56,12 +56,18 @@ class WebSocketService {
     this.ws = null;
   }
 
-  send(data: any) {
+  send(data: any): boolean {
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(data));
+      return true;
     } else {
-      console.warn("[WebSocket] Not connected, cannot send");
+      console.warn("[WebSocket] Not connected, cannot send:", data.type);
+      return false;
     }
+  }
+
+  get isConnected(): boolean {
+    return this.ws?.readyState === WebSocket.OPEN;
   }
 
   on(type: string, handler: MessageHandler) {

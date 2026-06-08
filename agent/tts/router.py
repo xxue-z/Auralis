@@ -1,45 +1,48 @@
-"""TTS Router — 根据配置选择 TTS 引擎"""
+"""TTS Router — 根据配置路由到对应引擎"""
 
 import logging
 from typing import Optional
 
+from . import create_engine, list_engines
+from .base import TTSEngine
+
 logger = logging.getLogger("auralis.tts")
 
-# 预设音线配置
+# 预设音线配置（provider + voice_id 映射）
 VOICE_PRESETS = {
     "sweet_female": {
-        "provider": "edge-tts",
-        "voice_id": "zh-CN-XiaoyiNeural",
+        "provider": "edge",
+        "voice_id": "sweet_female",
         "speed": 1.0,
         "pitch": 1.1,
     },
     "cute_female": {
-        "provider": "edge-tts",
-        "voice_id": "zh-CN-XiaohanNeural",
+        "provider": "edge",
+        "voice_id": "cute_female",
         "speed": 1.1,
         "pitch": 1.2,
     },
     "cool_female": {
-        "provider": "edge-tts",
-        "voice_id": "zh-CN-XiaomengNeural",
+        "provider": "edge",
+        "voice_id": "cool_female",
         "speed": 0.95,
         "pitch": 1.0,
     },
     "gentle_male": {
-        "provider": "edge-tts",
-        "voice_id": "zh-CN-YunxiNeural",
+        "provider": "edge",
+        "voice_id": "gentle_male",
         "speed": 0.95,
         "pitch": 0.9,
     },
     "energetic_male": {
-        "provider": "edge-tts",
-        "voice_id": "zh-CN-YunjianNeural",
+        "provider": "edge",
+        "voice_id": "energetic_male",
         "speed": 1.1,
         "pitch": 1.0,
     },
     "neutral": {
-        "provider": "edge-tts",
-        "voice_id": "zh-CN-XiaoxiaoNeural",
+        "provider": "edge",
+        "voice_id": "neutral",
         "speed": 1.0,
         "pitch": 1.0,
     },
@@ -47,12 +50,10 @@ VOICE_PRESETS = {
 
 
 class TTSRouter:
-    """TTS 路由：根据配置选择云端或本地 TTS"""
+    """TTS 路由：根据设置选择引擎，委托给工厂创建的引擎实例"""
 
     def __init__(self):
-        self._edge_tts = None
-        self._openai_tts = None
-        self._custom_voices: dict[str, dict] = {}  # 克隆/生成的自定义音色
+        self._custom_voices: dict[str, dict] = {}
 
     def register_custom_voice(self, voice_id: str, config: dict):
         """注册自定义音色（克隆或 AI 生成）"""
@@ -76,71 +77,29 @@ class TTSRouter:
         Returns:
             音频数据（bytes），失败返回 None
         """
-        provider = settings.get("voice.provider", "edge-tts")
-        speed = settings.get("voice.speed", 1.0)
-        pitch = settings.get("voice.pitch", 1.0)
-
         # 获取音线配置（优先自定义音色）
         voice_config = self._custom_voices.get(voice_id)
         if not voice_config:
             voice_config = VOICE_PRESETS.get(voice_id, VOICE_PRESETS["neutral"])
 
-        # 覆盖用户自定义的 speed/pitch
-        voice_config = {**voice_config, "speed": speed, "pitch": pitch}
+        # 确定引擎（音线配置 > 全局设置）
+        provider = voice_config.get("provider") or settings.get("voice.provider", "edge")
+        speed = settings.get("voice.speed", voice_config.get("speed", 1.0))
+        pitch = settings.get("voice.pitch", voice_config.get("pitch", 1.0))
+        engine_voice_id = voice_config.get("voice_id", voice_id)
 
-        try:
-            if provider == "openai":
-                return await self._openai_synthesize(text, voice_config)
-            else:
-                # 默认 edge-tts（免费，音质好）
-                return await self._edge_synthesize(text, voice_config)
-        except Exception as e:
-            logger.error(f"TTS 合成失败: {e}")
+        # 通过工厂获取引擎
+        engine = create_engine(provider)
+        if not engine:
+            logger.error(f"TTS 引擎不可用: {provider}，可用: {list_engines()}")
             return None
 
-    async def _edge_synthesize(self, text: str, config: dict) -> bytes:
-        """Edge TTS 合成（微软免费 TTS）"""
-        from edge_tts import Communicate
+        try:
+            return await engine.synthesize(text, engine_voice_id, speed, pitch)
+        except Exception as e:
+            logger.error(f"TTS 合成失败 [{provider}]: {e}")
+            return None
 
-        voice_id = config["voice_id"]
-        speed = config.get("speed", 1.0)
-        pitch = config.get("pitch", 1.0)
-
-        # 转换 speed/pitch 为 edge-tts 格式
-        rate = f"+{int((speed - 1) * 100)}%" if speed >= 1 else f"{int((speed - 1) * 100)}%"
-        pitch_str = f"+{int((pitch - 1) * 100)}%" if pitch >= 1 else f"{int((pitch - 1) * 100)}%"
-
-        communicate = Communicate(text, voice_id, rate=rate, pitch=pitch_str)
-        audio_data = b""
-        async for chunk in communicate.stream():
-            if chunk["type"] == "audio":
-                audio_data += chunk["data"]
-
-        return audio_data
-
-    async def _openai_synthesize(self, text: str, config: dict) -> bytes:
-        """OpenAI TTS 合成"""
-        from openai import AsyncOpenAI
-        from config import config as app_config
-
-        client = AsyncOpenAI(api_key=app_config.OPENAI_API_KEY)
-
-        # OpenAI TTS voice 映射
-        voice_map = {
-            "sweet_female": "nova",
-            "cute_female": "shimmer",
-            "cool_female": "alloy",
-            "gentle_male": "onyx",
-            "energetic_male": "echo",
-            "neutral": "fable",
-        }
-
-        voice = voice_map.get(config["voice_id"], "alloy")
-
-        response = await client.audio.speech.create(
-            model="tts-1",
-            voice=voice,
-            input=text,
-        )
-
-        return await response.content
+    def get_available_engines(self) -> list[str]:
+        """列出所有可用引擎"""
+        return list_engines()

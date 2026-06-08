@@ -14,6 +14,7 @@ class Config:
     OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-4o")
     ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
     ANTHROPIC_MODEL: str = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-20250514")
+    MIMO_API_KEY: str = os.getenv("MIMO_API_KEY", "")
     LOCAL_MODEL_ENABLED: bool = os.getenv("LOCAL_MODEL_ENABLED", "false").lower() == "true"
     LOCAL_MODEL_PATH: str = os.getenv("LOCAL_MODEL_PATH", "")
     DATA_DIR: Path = Path(os.getenv("DATA_DIR", Path(__file__).parent / "data"))
