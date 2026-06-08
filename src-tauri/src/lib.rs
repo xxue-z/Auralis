@@ -74,98 +74,38 @@ impl AgentProcessManager {
 
     /// 停止 Agent 进程
     pub fn stop_agent(&self) -> Result<(), String> {
-        // 1. 先杀掉 Tauri 启动的子进程（如果有）
-        {
-            let mut child_guard = self.child.lock().map_err(|e| e.to_string())?;
-            let mut pid_guard = self.pid.lock().map_err(|e| e.to_string())?;
+        let mut child_guard = self.child.lock().map_err(|e| e.to_string())?;
+        let mut pid_guard = self.pid.lock().map_err(|e| e.to_string())?;
 
-            if let Some(ref mut child) = *child_guard {
-                let pid = child.id();
-                log::info!("停止 Tauri 管理的 Agent 子进程 (PID: {})...", pid);
+        if let Some(ref mut child) = *child_guard {
+            let pid = child.id();
+            log::info!("正在停止 Agent 进程 (PID: {})...", pid);
 
-                #[cfg(target_os = "windows")]
-                {
-                    let _ = std::process::Command::new("taskkill")
-                        .args(["/F", "/T", "/PID", &pid.to_string()])
-                        .output();
-                }
-                #[cfg(not(target_os = "windows"))]
-                {
-                    let _ = child.kill();
-                }
-
-                *child_guard = None;
-                *pid_guard = None;
+            // Windows: taskkill /F /T 杀整个进程树
+            #[cfg(target_os = "windows")]
+            {
+                let _ = std::process::Command::new("taskkill")
+                    .args(["/F", "/T", "/PID", &pid.to_string()])
+                    .output();
             }
+            #[cfg(not(target_os = "windows"))]
+            {
+                let _ = child.kill();
+            }
+
+            *child_guard = None;
+            *pid_guard = None;
+            log::info!("Agent 进程清理完成");
+        } else {
+            log::warn!("没有找到 Tauri 管理的 Agent 进程");
         }
 
-        // 2. 搜索并杀掉所有运行 server.py 的 Python 进程（兜底）
-        kill_orphan_agent_processes();
-
-        log::info!("Agent 进程清理完成");
         Ok(())
     }
 
     /// 获取 Agent 进程 PID
     pub fn get_pid(&self) -> Option<u32> {
         *self.pid.lock().ok()?
-    }
-}
-
-/// 搜索并杀掉所有运行 server.py 的 Python 进程
-/// 兜底方案：即使 Agent 不是 Tauri 启动的也能被清理
-fn kill_orphan_agent_processes() {
-    #[cfg(target_os = "windows")]
-    {
-        // 用 PowerShell 查找命令行包含 server.py 的 python.exe 进程
-        let result = std::process::Command::new("powershell")
-            .args([
-                "-NoProfile", "-Command",
-                "Get-CimInstance Win32_Process -Filter \"Name='python.exe'\" | \
-                 Where-Object { $_.CommandLine -like '*server.py*' } | \
-                 Select-Object -ExpandProperty ProcessId",
-            ])
-            .output();
-
-        match result {
-            Ok(output) => {
-                let stdout = String::from_utf8_lossy(&output.stdout);
-                for line in stdout.lines() {
-                    let trimmed = line.trim();
-                    if trimmed.is_empty() {
-                        continue;
-                    }
-                    if let Ok(pid) = trimmed.parse::<u32>() {
-                        log::info!("发现孤儿 Agent 进程 (PID: {}), 正在杀死...", pid);
-                        let kill_result = std::process::Command::new("taskkill")
-                            .args(["/F", "/T", "/PID", &trimmed])
-                            .output();
-                        match kill_result {
-                            Ok(out) => {
-                                let msg = String::from_utf8_lossy(&out.stdout);
-                                if msg.contains("SUCCESS") {
-                                    log::info!("已杀死孤儿 Agent 进程 (PID: {})", pid);
-                                } else {
-                                    log::warn!("taskkill 返回: {}", msg.trim());
-                                }
-                            }
-                            Err(e) => log::error!("taskkill 执行失败: {}", e),
-                        }
-                    }
-                }
-            }
-            Err(e) => {
-                log::warn!("PowerShell 查找孤儿进程失败: {}", e);
-            }
-        }
-    }
-
-    #[cfg(not(target_os = "windows"))]
-    {
-        // macOS/Linux: 用 pkill 按命令行匹配
-        let _ = std::process::Command::new("pkill")
-            .args(["-f", "python.*server\\.py"])
-            .output();
     }
 }
 
