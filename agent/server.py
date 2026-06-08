@@ -595,8 +595,26 @@ def _get_session_id(ws: WebSocketServerProtocol) -> str:
 async def handle_capability_result(ws: WebSocketServerProtocol, data: dict):
     """处理前端返回的 capability 执行结果"""
     request_id = data.get("request_id")
+    logger.info(f"收到 capability 结果: request_id={request_id}")
+
+    # 防御性处理：前端返回 needs_confirmation 时（不应发生，风险等级已对齐）
+    needs_confirm = data.get("needs_confirmation")
+    if needs_confirm:
+        logger.warning(f"收到 needs_confirmation（风险等级不一致）: {needs_confirm}")
+        # 将 needs_confirmation 当作错误结果
+        cap_type = needs_confirm.get("capability_type", "unknown")
+        future = pending_results.get(request_id)
+        if future and not future.done():
+            future.set_result([{
+                "id": str(uuid.uuid4())[:8],
+                "success": False,
+                "error": f"操作需要确认：{needs_confirm.get('message')}",
+                "needs_confirmation": needs_confirm,
+            }])
+        pending_results.pop(request_id, None)
+        return
+
     results = data.get("results", [])
-    logger.info(f"收到 capability 结果: request_id={request_id}, {len(results)} 个结果")
 
     future = pending_results.get(request_id)
     if future and not future.done():
