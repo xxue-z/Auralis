@@ -22,34 +22,19 @@ if (-not (Test-Path (Join-Path $rootDir "node_modules"))) {
 Write-Host ""
 Write-Host "=== Auralis Development ===" -ForegroundColor Cyan
 Write-Host ""
+Write-Host "Agent will be auto-started/stopped by Tauri" -ForegroundColor Gray
+Write-Host ""
 
-# 1. Start Python Agent (background process)
-Write-Host "[1/2] Starting Agent (ws://127.0.0.1:9527)..." -ForegroundColor Cyan
-$agentProcess = Start-Process -FilePath $venvPython -ArgumentList "server.py" `
-    -WorkingDirectory $agentDir `
-    -WindowStyle Hidden `
-    -PassThru
-
-Write-Host "  Agent PID: $($agentProcess.Id)" -ForegroundColor Gray
-
-# Wait for Agent to start
-Start-Sleep -Seconds 2
-
-# 2. Start Tauri (foreground)
-Write-Host "[2/2] Starting Tauri..." -ForegroundColor Cyan
+# Start Tauri (Agent will be auto-started by Tauri)
+Write-Host "Starting Tauri..." -ForegroundColor Cyan
 Write-Host "  Press Ctrl+C to stop" -ForegroundColor Yellow
 Write-Host ""
 
+Push-Location $rootDir
 try {
-    Push-Location $rootDir
     npm run tauri dev
 } finally {
-    # 3. Cleanup: stop Agent process
     Pop-Location
-    if (-not $agentProcess.HasExited) {
-        Write-Host ""
-        Write-Host "Stopping Agent..." -ForegroundColor Yellow
-        Stop-Process -Id $agentProcess.Id -Force -ErrorAction SilentlyContinue
-    }
-    Write-Host "Done." -ForegroundColor Green
+    Write-Host ""
+    Write-Host "Tauri stopped" -ForegroundColor Green
 }
