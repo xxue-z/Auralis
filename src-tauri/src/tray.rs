@@ -4,6 +4,8 @@ use tauri::{
     tray::TrayIconBuilder,
 };
 
+use crate::AGENT_MANAGER;
+
 /// 根据系统语言获取菜单文本
 fn get_menu_texts() -> (&'static str, &'static str, &'static str, &'static str) {
     let locale = sys_locale::get_locale().unwrap_or_default();
@@ -63,6 +65,9 @@ pub fn setup(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
                 "quit" => {
+                    // 先停止 Agent 进程
+                    log::info!("托盘退出：正在停止 Agent 进程...");
+                    let _ = AGENT_MANAGER.stop_agent();
                     app.exit(0);
                 }
                 _ => {}

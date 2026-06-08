@@ -4,6 +4,7 @@ import asyncio
 import base64
 import json
 import logging
+import signal
 import uuid
 import websockets
 from websockets.server import WebSocketServerProtocol
@@ -900,9 +901,37 @@ async def main():
     logger.info(f"Auralis Agent 启动中...")
     logger.info(f"WebSocket 监听: ws://{config.WS_HOST}:{config.WS_PORT}")
 
+    # 创建停止事件
+    stop_event = asyncio.Event()
+
+    def handle_signal():
+        logger.info("收到退出信号，正在停止...")
+        stop_event.set()
+
+    # 注册信号处理（Windows 上 SIGTERM 可能不可用，使用 SIGBREAK）
+    loop = asyncio.get_running_loop()
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        try:
+            loop.add_signal_handler(sig, handle_signal)
+        except NotImplementedError:
+            # Windows 不支持 add_signal_handler，使用传统方式
+            pass
+
     async with websockets.serve(handler, config.WS_HOST, config.WS_PORT):
         logger.info("Agent 就绪，等待连接...")
-        await asyncio.Future()
+        # 等待停止信号
+        await stop_event.wait()
+        logger.info("Agent 正在关闭...")
+
+        # 关闭所有客户端连接
+        for client in connected_clients.copy():
+            try:
+                await client.close()
+            except Exception:
+                pass
+        connected_clients.clear()
+
+    logger.info("Agent 已停止")
 
 
 if __name__ == "__main__":
