@@ -13,7 +13,8 @@ impl SafetyHooks {
             | Capability::SystemInfo => RiskLevel::Low,
             Capability::FileWrite { .. } | Capability::FileMove { .. }
             | Capability::FileCopy { .. } | Capability::FileDelete { .. }
-            | Capability::AppLaunch { .. } | Capability::AppClose { .. } => RiskLevel::Medium,
+            | Capability::AppClose { .. } => RiskLevel::Medium,
+            Capability::AppLaunch { .. } => RiskLevel::Low,
             Capability::SystemLock => RiskLevel::High,
             Capability::SystemShutdown { .. } => RiskLevel::Critical,
             Capability::UIClick { .. } | Capability::UIType { .. } => RiskLevel::Medium,
