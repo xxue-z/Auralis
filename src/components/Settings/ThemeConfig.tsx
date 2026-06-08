@@ -1,4 +1,5 @@
 import { useSettingsStore } from "../../stores/settingsStore";
+import { ModelSelector } from "../Character/ModelSelector";
 
 const PRESET_COLORS = [
   { name: "蓝色", value: "#0ea5e9" },
@@ -15,6 +16,9 @@ export function ThemeConfig() {
 
   return (
     <div className="space-y-3">
+      {/* 角色模型 */}
+      <ModelSelector />
+
       {/* 主题色 */}
       <div>
         <label className="text-xs text-gray-500">聊天主题色</label>

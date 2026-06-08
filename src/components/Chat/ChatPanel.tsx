@@ -50,7 +50,7 @@ export function ChatPanel() {
             : "🔴 " + t("chat.disconnected")}
         </span>
       </div>
-      <div className="flex-1 overflow-y-auto p-3 space-y-1">
+      <div className="flex-1 overflow-y-auto p-3 space-y-2">
         {messages.length === 0 && (
           <div className="text-center text-gray-400 text-sm mt-8">
             {t("character.greeting")}

@@ -36,15 +36,18 @@ function App() {
   }, []);
 
   // 切换聊天面板
+  const modelId = useSettingsStore((s) => s.settings["appearance.model_id"] || "svg_fallback");
   const toggleChat = useCallback(async () => {
     const next = !showChat;
     setShowChat(next);
+    const isLive2D = modelId !== "svg_fallback";
     if (next) {
       await resizeWindow(320, 480);
     } else {
-      await resizeWindow(120, 160);
+      // Live2D 模式需要更大窗口
+      await resizeWindow(isLive2D ? 240 : 120, isLive2D ? 240 : 160);
     }
-  }, [showChat, resizeWindow]);
+  }, [showChat, resizeWindow, modelId]);
 
   // 打开设置
   const openSettings = useCallback(async () => {

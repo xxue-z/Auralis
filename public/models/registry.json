@@ -1,0 +1,43 @@
+{
+  "models": [
+    {
+      "id": "hiyori",
+      "name": "日和",
+      "nameEn": "Hiyori",
+      "path": "/models/hiyori/Hiyori.model3.json",
+      "type": "bundled",
+      "mappings": {
+        "idle": "Idle",
+        "speaking": "TapBody",
+        "thinking": "TapBody",
+        "happy": "TapBody"
+      }
+    },
+    {
+      "id": "senko",
+      "name": "狐娘",
+      "nameEn": "Senko",
+      "path": "/models/senko/senko.model3.json",
+      "type": "bundled",
+      "mappings": {
+        "idle": "Idle",
+        "speaking": "Tap",
+        "thinking": "Taphead",
+        "happy": "Tap"
+      }
+    },
+    {
+      "id": "natori",
+      "name": "名取",
+      "nameEn": "Natori",
+      "path": "/models/natori/Natori.model3.json",
+      "type": "bundled",
+      "mappings": {
+        "idle": "Idle",
+        "speaking": "TapBody",
+        "thinking": "TapBody",
+        "happy": "TapBody"
+      }
+    }
+  ]
+}

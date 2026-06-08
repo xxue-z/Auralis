@@ -70,6 +70,11 @@ SETTINGS_SCHEMA: dict[str, dict[str, Any]] = {
         "label": "精灵风格", "description": "精灵的视觉风格（neko/kitsune/fairy/android/blossom）",
         "ai_editable": True, "confirm_required": False,
     },
+    "appearance.model_id": {
+        "type": "string", "default": "svg_fallback",
+        "label": "角色模型", "description": "当前使用的角色模型 ID（svg_fallback 为默认 SVG 精灵）",
+        "ai_editable": True, "confirm_required": False,
+    },
 
     # ============ 引导流程 ============
     "onboarding.complete": {

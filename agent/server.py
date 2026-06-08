@@ -734,12 +734,14 @@ async def handle_voice_preview(ws: WebSocketServerProtocol, data: dict):
 
 async def send_text_response(ws: WebSocketServerProtocol, message_id: str, text: str):
     """发送流式文本回复，可选附带 TTS 音频"""
+    # 使用新 ID 生成 agent 回复（避免与 user 消息 ID 冲突）
+    agent_msg_id = f"agent_{message_id}"
     # 流式发送文本
     for i in range(0, len(text), 10):
         chunk = text[i:i+10]
         await ws.send(json.dumps({
             "type": "agent_response",
-            "id": message_id,
+            "id": agent_msg_id,
             "content": chunk,
             "status": "streaming",
             "persona_state": "speaking",
@@ -749,7 +751,7 @@ async def send_text_response(ws: WebSocketServerProtocol, message_id: str, text:
     # 文本发送完成
     await ws.send(json.dumps({
         "type": "agent_response",
-        "id": message_id,
+        "id": agent_msg_id,
         "content": "",
         "status": "done",
         "persona_state": "speaking",

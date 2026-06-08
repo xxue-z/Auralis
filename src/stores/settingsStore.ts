@@ -41,6 +41,7 @@ const DEFAULT_SETTINGS: Record<string, any> = {
   "appearance.chat_opacity": 0.9,
   "appearance.sprite_size": 96,
   "appearance.sprite_style": "",
+  "appearance.model_id": "svg_fallback",
   // 引导
   "onboarding.complete": false,
   // 语音
@@ -57,7 +58,12 @@ function loadSettings(): Record<string, any> {
   try {
     const saved = localStorage.getItem("auralis-settings");
     if (saved) {
-      return { ...DEFAULT_SETTINGS, ...JSON.parse(saved) };
+      const parsed = { ...DEFAULT_SETTINGS, ...JSON.parse(saved) };
+      // 强制模型 ID 默认为 SVG（Live2D 还在开发中）
+      if (!parsed["appearance.model_id"] || parsed["appearance.model_id"] === "") {
+        parsed["appearance.model_id"] = "svg_fallback";
+      }
+      return parsed;
     }
   } catch {}
   return { ...DEFAULT_SETTINGS };
