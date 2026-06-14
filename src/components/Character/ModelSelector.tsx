@@ -12,7 +12,8 @@ import type { Live2DModelConfig } from "../../types/live2d";
 export function ModelSelector() {
   const [models, setModels] = useState<Live2DModelConfig[]>([]);
   const [saved, setSaved] = useState(false);
-  const currentModelId = useSettingsStore((s) => s.settings["appearance.model_id"] || "svg_fallback");
+  const settings = useSettingsStore((s) => s.settings);
+  const currentModelId = settings["appearance.model_id"] || "svg_fallback";
   const setSetting = useSettingsStore((s) => s.setSetting);
 
   useEffect(() => {

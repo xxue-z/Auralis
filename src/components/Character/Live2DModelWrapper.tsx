@@ -14,6 +14,7 @@ interface Live2DModelWrapperProps {
   config: Live2DModelConfig;
   state: PersonaState;
   size: number;
+  ratio: number;
   onLoaded?: () => void;
   onError?: () => void;
 }
@@ -23,6 +24,7 @@ export function Live2DModelWrapper({
   config,
   state,
   size,
+  ratio,
   onLoaded,
   onError,
 }: Live2DModelWrapperProps) {
@@ -50,18 +52,32 @@ export function Live2DModelWrapper({
 
         // 配置模型
         model.anchor.set(0.5, 0.5);
-        model.x = app.screen.width / 2;
-        model.y = app.screen.height / 2;
+        model.x = size / 2;
+        model.y = size / 2;
 
-        // 缩放模型适配窗口（Live2D 模型原生尺寸通常很大）
-        const scaleX = size / (model.width || 800);
-        const scaleY = size / (model.height || 800);
+        // 保存模型原始尺寸（模型宽高会在 scale 后变化，仅记录一次）
+        if (!(model as any).__origWidth) {
+          (model as any).__origWidth = model.width || 800;
+        }
+        if (!(model as any).__origHeight) {
+          (model as any).__origHeight = model.height || 800;
+        }
+
+        // 缩放模型适配窗口
+        const target = size * ratio;
+        const scaleX = target / ((model as any).__origWidth);
+        const scaleY = target / ((model as any).__origHeight);
         const scale = Math.min(scaleX, scaleY) * 0.85; // 留 15% 边距
         model.scale.set(scale);
 
         // 启用交互（鼠标跟踪 + 点击）
         model.interactive = true;
         model.buttonMode = true;
+
+        // 标记本次点击是否真正落在模型上（而非 canvas 空白区）
+        model.on("pointerdown", () => {
+          (window as any).__live2dModelClick = true;
+        });
 
         app.stage.addChild(model);
         modelRef.current = model;
@@ -99,14 +115,20 @@ export function Live2DModelWrapper({
     }
   }, [state, config]);
 
-  // 尺寸变化时重新缩放
+  // 尺寸/比例变化时重新缩放
   useEffect(() => {
     if (!modelRef.current) return;
-    const scale = Math.min(size / 300, 1.0);
-    modelRef.current.scale.set(scale);
-    modelRef.current.x = app.screen.width / 2;
-    modelRef.current.y = app.screen.height / 2;
-  }, [size, app]);
+    const m = modelRef.current;
+    const origW = (m as any).__origWidth || m.width || 800;
+    const origH = (m as any).__origHeight || m.height || 800;
+    const target = size * ratio;
+    const scaleX = target / origW;
+    const scaleY = target / origH;
+    const scale = Math.min(scaleX, scaleY) * 0.85;
+    m.scale.set(scale);
+    m.x = size / 2;
+    m.y = size / 2;
+  }, [size, ratio, app]);
 
   if (error) {
     return null; // 加载失败时由外层 fallback 到 SVG

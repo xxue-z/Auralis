@@ -18,7 +18,15 @@
       "description": "Choose your preferred language"
     },
     "model": "AI Model",
-    "theme": "Appearance"
+    "theme": "Appearance",
+    "voice": "Voice",
+    "tab_live2d": "Live2D",
+    "tab_chat": "Chat",
+    "model_window_ratio": "Model Window Ratio",
+    "model_size": "Model Size",
+    "model_opacity": "Model Opacity",
+    "chat_theme_color": "Chat Theme Color",
+    "chat_opacity": "Chat Opacity"
   },
   "character": {
     "greeting": "Hello! I'm Auralis, your desktop fairy. How can I help you?",

@@ -1,7 +1,7 @@
 use tauri::{
-    AppHandle, Manager,
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
+    AppHandle, Manager,
 };
 
 use crate::AGENT_MANAGER;
@@ -27,10 +27,7 @@ pub fn setup(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     let quit_item = MenuItem::with_id(app, "quit", quit_text, true, None::<&str>)?;
 
     // 构建菜单
-    let menu = Menu::with_items(
-        app,
-        &[&show_item, &hide_item, &settings_item, &quit_item],
-    )?;
+    let menu = Menu::with_items(app, &[&show_item, &hide_item, &settings_item, &quit_item])?;
 
     // 加载托盘图标（缺失时不 panic，托盘仍可工作）
     let icon = app.default_window_icon().cloned().unwrap_or_else(|| {
@@ -46,22 +43,23 @@ pub fn setup(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
         .on_menu_event(move |app, event| {
             match event.id().as_ref() {
                 "show" => {
-                    if let Some(window) = app.get_webview_window("main") {
+                    if let Some(window) = app.get_webview_window("pet") {
                         let _ = window.show();
                         let _ = window.set_focus();
                     }
                 }
                 "hide" => {
-                    if let Some(window) = app.get_webview_window("main") {
+                    if let Some(window) = app.get_webview_window("pet") {
                         let _ = window.hide();
                     }
                 }
                 "settings" => {
-                    // 显示窗口并通知前端打开设置
-                    if let Some(window) = app.get_webview_window("main") {
+                    // 显示 pet 窗口并通知前端打开设置
+                    if let Some(window) = app.get_webview_window("pet") {
                         let _ = window.show();
                         let _ = window.set_focus();
-                        let _ = window.eval("window.dispatchEvent(new CustomEvent('open-settings'))");
+                        let _ =
+                            window.eval("window.dispatchEvent(new CustomEvent('open-settings'))");
                     }
                 }
                 "quit" => {
@@ -82,7 +80,7 @@ pub fn setup(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
             } = event
             {
                 let app = tray.app_handle();
-                if let Some(window) = app.get_webview_window("main") {
+                if let Some(window) = app.get_webview_window("pet") {
                     if window.is_visible().unwrap_or(false) {
                         let _ = window.hide();
                     } else {

@@ -21,7 +21,7 @@ body {
 }
 
 .character-draggable {
-  -webkit-app-region: drag;
+  /* 窗口拖动由 JS pointer events + appWindow.startDragging() 处理 */
 }
 
 .chat-panel {

@@ -16,7 +16,17 @@
     "language": {
       "label": "语言",
       "description": "选择你偏好的语言"
-    }
+    },
+    "model": "AI模型",
+    "theme": "外观",
+    "voice": "语音",
+    "tab_live2d": "Live2D",
+    "tab_chat": "聊天窗口",
+    "model_window_ratio": "模型占窗口比例",
+    "model_size": "模型大小",
+    "model_opacity": "模型透明度",
+    "chat_theme_color": "聊天主题色",
+    "chat_opacity": "聊天透明度"
   },
   "character": {
     "greeting": "你好！我是 Auralis，你的桌面精灵。有什么可以帮你的吗？",

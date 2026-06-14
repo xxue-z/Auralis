@@ -21,4 +21,13 @@ export default defineConfig(async () => ({
       ignored: ["**/src-tauri/**"],
     },
   },
+  build: {
+    rollupOptions: {
+      input: {
+        pet: "pet.html",
+        chat: "chat.html",
+        settings: "settings.html",
+      },
+    },
+  },
 }));

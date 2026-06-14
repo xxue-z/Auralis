@@ -134,11 +134,11 @@ pub fn run() {
                 }
             }
 
-            // 监听窗口关闭事件
-            if let Some(window) = app.get_webview_window("main") {
+            // 监听 Pet 窗口关闭事件
+            if let Some(window) = app.get_webview_window("pet") {
                 window.on_window_event(|event| {
                     if let tauri::WindowEvent::Destroyed = event {
-                        log::info!("窗口已关闭，停止 Agent 进程...");
+                        log::info!("Pet 窗口已关闭，停止 Agent 进程...");
                         let _ = AGENT_MANAGER.stop_agent();
                     }
                 });

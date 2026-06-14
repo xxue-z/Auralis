@@ -7,7 +7,7 @@ pub fn greet(name: &str) -> String {
     format!("Hello, {}! Welcome to Auralis.", name)
 }
 
-/// 调整主窗口大小，自动选择最佳扩展方向
+/// 调整 Pet 窗口大小，自动选择最佳扩展方向
 /// sprite_size: 精灵区域大小（用于计算锚点偏移）
 #[tauri::command]
 pub async fn resize_window(
@@ -16,8 +16,8 @@ pub async fn resize_window(
     height: f64,
     sprite_size: Option<f64>,
 ) -> Result<(), String> {
-    let window = app.get_webview_window("main")
-        .ok_or("Window 'main' not found")?;
+    let window = app.get_webview_window("pet")
+        .ok_or("Window 'pet' not found")?;
 
     let pos = window.outer_position().map_err(|e| e.to_string())?;
     let size = window.outer_size().map_err(|e| e.to_string())?;

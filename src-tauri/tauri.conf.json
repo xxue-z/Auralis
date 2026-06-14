@@ -11,16 +11,17 @@
   "app": {
     "windows": [
       {
-        "label": "main",
+        "label": "pet",
         "title": "Auralis",
-        "width": 120,
-        "height": 160,
+        "width": 240,
+        "height": 260,
         "transparent": true,
         "decorations": false,
         "alwaysOnTop": true,
         "resizable": false,
         "skipTaskbar": true,
-        "shadow": false
+        "shadow": false,
+        "url": "/pet.html"
       }
     ],
     "security": {

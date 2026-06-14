@@ -15,6 +15,8 @@ interface PixiCanvasProps {
 export function PixiCanvas({ width, height, className, onApp }: PixiCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const appRef = useRef<any>(null);
+  const sizeRef = useRef({ width, height });
+  sizeRef.current = { width, height };
 
   useEffect(() => {
     if (!canvasRef.current || appRef.current) return;
@@ -23,11 +25,13 @@ export function PixiCanvas({ width, height, className, onApp }: PixiCanvasProps)
 
     import("pixi.js").then((PIXI) => {
       if (cancelled || !canvasRef.current) return;
+      // Use ref to avoid stale closure on width/height
+      const { width: w, height: h } = sizeRef.current;
 
       const app = new PIXI.Application({
         view: canvasRef.current,
-        width,
-        height,
+        width: w,
+        height: h,
         backgroundAlpha: 0,      // 透明背景（v6.5+）
         backgroundColor: 0x000000,
         resolution: window.devicePixelRatio || 1,

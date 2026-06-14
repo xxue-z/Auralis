@@ -5,7 +5,19 @@ import { ModelConfig } from "./ModelConfig";
 import { ThemeConfig } from "./ThemeConfig";
 import { VoiceConfig } from "./VoiceConfig";
 
-type Section = "general" | "model" | "theme" | "voice" | null;
+type Section = "general" | "model" | "theme" | "voice";
+
+const NAV_ITEMS: {
+  key: Section;
+  icon: string;
+  labelKey: string;
+  fallback: string;
+}[] = [
+  { key: "general", icon: "🌐", labelKey: "settings.language.label", fallback: "Language" },
+  { key: "model", icon: "🤖", labelKey: "settings.model", fallback: "Model" },
+  { key: "theme", icon: "🎨", labelKey: "settings.theme", fallback: "Appearance" },
+  { key: "voice", icon: "🎤", labelKey: "settings.voice", fallback: "Voice" },
+];
 
 interface Props {
   onClose: () => void;
@@ -13,86 +25,54 @@ interface Props {
 
 export function SettingsPanel({ onClose }: Props) {
   const { t } = useTranslation();
-  const [section, setSection] = useState<Section>(null);
+  const [section, setSection] = useState<Section>("general");
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/20">
-      <div className="w-96 max-h-[80vh] bg-white/95 backdrop-blur rounded-2xl shadow-xl overflow-hidden flex flex-col">
-        {/* 头部 */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
-          <h2 className="text-sm font-bold text-gray-800">⚙️ {t("settings.title")}</h2>
-          <button
-            onClick={onClose}
-            className="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100"
-          >
-            ✕
-          </button>
-        </div>
+    <div className="flex flex-col h-screen w-screen bg-white">
+      <div
+        data-tauri-drag-region
+        className="flex items-center justify-between px-4 py-2.5 border-b border-gray-200 shrink-0"
+      >
+        <h2 className="text-sm font-bold text-gray-800">
+          ⚙️ {t("settings.title")}
+        </h2>
+        <button
+          onClick={onClose}
+          className="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100"
+        >
+          ✕
+        </button>
+      </div>
 
-        {/* 内容 */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-2">
-          {/* 语言设置 */}
-          <SettingsSection
-            title={`🌐 ${t("settings.language.label")}`}
-            isOpen={section === "general"}
-            onToggle={() => setSection(section === "general" ? null : "general")}
-          >
-            <LanguageSelector />
-          </SettingsSection>
+      <div className="flex flex-1 overflow-hidden">
+        <nav className="w-36 shrink-0 bg-gray-50/80 border-r border-gray-200 py-3 px-2 flex flex-col gap-1">
+          {NAV_ITEMS.map((item) => {
+            const label = item.labelKey ? t(item.labelKey) : item.fallback;
+            const isActive = section === item.key;
+            return (
+              <button
+                key={item.key}
+                onClick={() => setSection(item.key)}
+                className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
+                  isActive
+                    ? "bg-indigo-50 text-indigo-700 font-semibold"
+                    : "text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                }`}
+              >
+                <span className="text-sm leading-none">{item.icon}</span>
+                <span>{label}</span>
+              </button>
+            );
+          })}
+        </nav>
 
-          {/* 模型配置 */}
-          <SettingsSection
-            title={`🤖 ${t("settings.model")}`}
-            isOpen={section === "model"}
-            onToggle={() => setSection(section === "model" ? null : "model")}
-          >
-            <ModelConfig />
-          </SettingsSection>
-
-          {/* 主题外观 */}
-          <SettingsSection
-            title={`🎨 ${t("settings.theme")}`}
-            isOpen={section === "theme"}
-            onToggle={() => setSection(section === "theme" ? null : "theme")}
-          >
-            <ThemeConfig />
-          </SettingsSection>
-
-          {/* 语音设置 */}
-          <SettingsSection
-            title="🎤 语音"
-            isOpen={section === "voice"}
-            onToggle={() => setSection(section === "voice" ? null : "voice")}
-          >
-            <VoiceConfig />
-          </SettingsSection>
+        <div className="flex-1 overflow-y-auto p-5">
+          {section === "general" && <LanguageSelector />}
+          {section === "model" && <ModelConfig />}
+          {section === "theme" && <ThemeConfig />}
+          {section === "voice" && <VoiceConfig />}
         </div>
       </div>
-    </div>
-  );
-}
-
-function SettingsSection({
-  title,
-  isOpen,
-  onToggle,
-  children,
-}: {
-  title: string;
-  isOpen: boolean;
-  onToggle: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="border border-gray-200 rounded-xl overflow-hidden">
-      <button
-        onClick={onToggle}
-        className="w-full flex items-center justify-between px-3 py-2.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-      >
-        <span>{title}</span>
-        <span className="text-gray-400">{isOpen ? "▲" : "▼"}</span>
-      </button>
-      {isOpen && <div className="px-3 pb-3">{children}</div>}
     </div>
   );
 }

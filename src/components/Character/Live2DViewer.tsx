@@ -7,6 +7,8 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { PhysicalSize } from "@tauri-apps/api/dpi";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { useAgentStore } from "../../stores/agentStore";
 import { CharacterSVG } from "./CharacterSVG";
@@ -17,10 +19,10 @@ import type { Live2DModelConfig } from "../../types/live2d";
 import "./CharacterAnimations.css";
 
 interface Props {
-  onClick?: () => void;
+  // 点击由父组件的 pointerUp 统一处理，不再通过 onClick prop
 }
 
-export function Live2DViewer({ onClick }: Props) {
+export function Live2DViewer(_props: Props) {
   const [isHovered, setIsHovered] = useState(false);
   const [pixiApp, setPixiApp] = useState<any>(null);
   const [modelConfig, setModelConfig] = useState<Live2DModelConfig | null>(null);
@@ -28,8 +30,11 @@ export function Live2DViewer({ onClick }: Props) {
   const [modelFailed, setModelFailed] = useState(false);
   const [registryLoaded, setRegistryLoaded] = useState(false);
 
-  const spriteSize = useSettingsStore((s) => s.settings["appearance.sprite_size"] || 96);
-  const modelId = useSettingsStore((s) => s.settings["appearance.model_id"] || "svg_fallback");
+  const settings = useSettingsStore((s) => s.settings);
+  const modelId = settings["appearance.model_id"] || "svg_fallback";
+  const spriteSize = settings[`model:${modelId}:sprite_size`] ?? settings["appearance.sprite_size"] ?? 96;
+  const spriteOpacity = settings[`model:${modelId}:sprite_opacity`] ?? settings["appearance.sprite_opacity"] ?? 1;
+  const ratio = settings[`model:${modelId}:window_ratio`] ?? 1.0;
   const personaState = useAgentStore((s) => s.personaState);
 
   useEffect(() => {
@@ -43,7 +48,6 @@ export function Live2DViewer({ onClick }: Props) {
       setModelConfig(null);
       setModelReady(false);
       setModelFailed(false);
-      setPixiApp(null);
       return;
     }
 
@@ -56,9 +60,13 @@ export function Live2DViewer({ onClick }: Props) {
     setModelConfig(config);
     setModelReady(false);
     setModelFailed(false);
-    setPixiApp(null);
 
-    // 后台加载模型数据（不需要 PixiCanvas）
+    // 在模型开始加载前确保 Pixi canvas 尺寸正确
+    if (pixiApp) {
+      pixiApp.renderer.resize(displaySize, displaySize);
+    }
+
+    // 后台加载模型数据
     let cancelled = false;
     loadModel(config)
       .then(() => {
@@ -79,62 +87,53 @@ export function Live2DViewer({ onClick }: Props) {
 
   const handlePixiApp = useCallback((app: any) => setPixiApp(app), []);
 
-  // 只有模型预加载完成后才渲染 PixiCanvas
-  const showLive2D = modelReady && !modelFailed && modelConfig !== null;
-  // Live2D 模型使用较大显示区域，SVG 使用 spriteSize
-  const live2dSize = showLive2D ? 200 : 0;
-  const displaySize = showLive2D ? live2dSize : spriteSize;
+  const displaySize = spriteSize;
 
-  // Live2D 模式下自动调整窗口大小
+  // 精灵大小变化时调整窗口大小，同步确保 Pixi canvas 尺寸
   useEffect(() => {
-    if (showLive2D) {
-      import("@tauri-apps/api/core").then(({ invoke }) => {
-        // 窗口尺寸 = 模型显示区域 + 底部留白
-        const winSize = displaySize + 40;
-        invoke("resize_window", { width: winSize, height: winSize, spriteSize: displaySize }).catch(() => {});
-      });
+    const winSize = displaySize + 40;
+    const appWindow = getCurrentWebviewWindow();
+    appWindow.setSize(new PhysicalSize(winSize, winSize)).catch(() => {});
+    if (pixiApp) {
+      pixiApp.renderer.resize(displaySize, displaySize);
     }
-  }, [showLive2D, displaySize]);
-
-  const handleClick = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    onClick?.();
-  }, [onClick]);
+  }, [displaySize, pixiApp]);
 
   return (
     <div
       className="relative cursor-pointer select-none character-container character-draggable"
-      style={{ width: displaySize, height: displaySize }}
+      style={{ width: displaySize, height: displaySize, opacity: spriteOpacity }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      onClick={handleClick}
     >
-      {showLive2D && modelConfig ? (
-        /* Live2D 模式 — 模型已预加载，直接渲染 */
-        <>
-          <PixiCanvas
-            key={`canvas-${modelConfig.id}`}
-            width={displaySize}
-            height={displaySize}
-            onApp={handlePixiApp}
-          />
-          {pixiApp && (
-            <Live2DModelWrapper
-              key={modelConfig.id}
-              app={pixiApp}
-              config={modelConfig}
-              state={personaState}
-              size={displaySize}
-            />
-          )}
-        </>
-      ) : (
-        /* SVG 模式（默认 / 加载中 / 加载失败） */
+      {/* PixiCanvas 常驻：选中 Live2D 模型后即使加载中也保持 */}
+      {modelId !== "svg_fallback" && !modelFailed && (
+        <PixiCanvas
+          width={displaySize}
+          height={displaySize}
+          onApp={handlePixiApp}
+        />
+      )}
+
+      {/* Live2D 模型（只读加载完成后才渲染） */}
+      {pixiApp && modelConfig && modelReady && (
+        <Live2DModelWrapper
+          key={modelConfig.id}
+          app={pixiApp}
+          config={modelConfig}
+          state={personaState}
+          size={displaySize}
+          ratio={ratio}
+        />
+      )}
+
+      {/* SVG 回退 */}
+      {(modelId === "svg_fallback" || modelFailed) && (
         <CharacterSVG state={personaState} size={spriteSize} />
       )}
 
       {isHovered && (
-        <div className="absolute -top-4 left-1/2 -translate-x-1/2 whitespace-nowrap
+        <div className="absolute -bottom-5 left-1/2 -translate-x-1/2 whitespace-nowrap
                         text-xs text-gray-500 bg-white/80 px-2 py-0.5 rounded-full shadow
                         animate-pulse z-20">
           点击聊天

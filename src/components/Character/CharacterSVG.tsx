@@ -6,8 +6,7 @@ interface CharacterSVGProps {
 export function CharacterSVG({ state, size }: CharacterSVGProps) {
   return (
     <svg
-      width={size}
-      height={size}
+      style={{ width: size, height: size }}
       viewBox="0 0 120 120"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"

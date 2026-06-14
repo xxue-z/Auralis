@@ -7,12 +7,18 @@ import { useSettingsStore } from "../../stores/settingsStore";
 import { MessageBubble } from "./MessageBubble";
 import { InputBar } from "./InputBar";
 
-export function ChatPanel() {
+interface ChatPanelProps {
+  onClose?: () => void;
+  chatColor?: string;
+}
+
+export function ChatPanel({ onClose, chatColor: propColor }: ChatPanelProps = {}) {
   const { t } = useTranslation();
   const messages = useChatStore((s) => s.messages);
   const isThinking = useChatStore((s) => s.isThinking);
   const agentStatus = useAgentStore((s) => s.status);
-  const chatColor = useSettingsStore((s) => s.settings["appearance.chat_color"] || "#0ea5e9");
+  const settingsColor = useSettingsStore((s) => s.settings["appearance.chat_color"] || "#0ea5e9");
+  const chatColor = propColor || settingsColor;
   const chatOpacity = useSettingsStore((s) => s.settings["appearance.chat_opacity"] || 0.9);
   const { sendMessage, connect } = useAgent();
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -39,8 +45,9 @@ export function ChatPanel() {
       style={{ background: hexToRgba("#ffffff", chatOpacity) }}
     >
       <div
+        data-tauri-drag-region
         className="flex items-center justify-between px-4 py-2 border-b"
-        style={{ borderColor: hexToRgba(chatColor, 0.2), background: hexToRgba(chatColor, 0.05) }}
+        style={{ borderColor: hexToRgba(chatColor, 0.2), background: hexToRgba(chatColor, 0.05), minHeight: 36, userSelect: "none" }}
       >
         <span className="text-xs font-medium" style={{ color: chatColor }}>
           {agentStatus === "connected"
@@ -49,6 +56,38 @@ export function ChatPanel() {
             ? "🟡 " + t("chat.connecting")
             : "🔴 " + t("chat.disconnected")}
         </span>
+        {onClose && (
+          <button
+            data-tauri-no-drag
+            onClick={onClose}
+            style={{
+              width: 24,
+              height: 24,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              border: "none",
+              background: "transparent",
+              color: "#999",
+              cursor: "pointer",
+              borderRadius: 12,
+              fontSize: 14,
+              lineHeight: 1,
+              padding: 0,
+            }}
+            onMouseEnter={(e) => {
+              (e.target as HTMLElement).style.background = hexToRgba(chatColor, 0.1);
+              (e.target as HTMLElement).style.color = chatColor;
+            }}
+            onMouseLeave={(e) => {
+              (e.target as HTMLElement).style.background = "transparent";
+              (e.target as HTMLElement).style.color = "#999";
+            }}
+            title="Close"
+          >
+            ✕
+          </button>
+        )}
       </div>
       <div className="flex-1 overflow-y-auto p-3 space-y-2">
         {messages.length === 0 && (

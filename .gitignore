@@ -49,3 +49,4 @@ models/*.gguf
 
 # Logs
 *.log
+/CLAUDE.md
