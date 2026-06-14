@@ -47,6 +47,9 @@ const DEFAULT_SETTINGS: Record<string, any> = {
   "model:svg_fallback:sprite_size": 96,
   "model:svg_fallback:sprite_opacity": 1.0,
   "model:svg_fallback:window_ratio": 1.0,
+  "appearance.click_zone_w": 60,
+  "appearance.click_zone_h": 80,
+  "appearance.mode": "interactive",
   // 引导
   "onboarding.complete": false,
   // 语音

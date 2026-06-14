@@ -25,6 +25,8 @@
     "model_window_ratio": "模型占窗口比例",
     "model_size": "模型大小",
     "model_opacity": "模型透明度",
+    "click_zone_w": "鼠标点击区宽",
+    "click_zone_h": "鼠标点击区高",
     "chat_theme_color": "聊天主题色",
     "chat_opacity": "聊天透明度"
   },

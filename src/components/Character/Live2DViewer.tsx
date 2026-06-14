@@ -23,7 +23,6 @@ interface Props {
 }
 
 export function Live2DViewer(_props: Props) {
-  const [isHovered, setIsHovered] = useState(false);
   const [pixiApp, setPixiApp] = useState<any>(null);
   const [modelConfig, setModelConfig] = useState<Live2DModelConfig | null>(null);
   const [modelReady, setModelReady] = useState(false);
@@ -103,8 +102,6 @@ export function Live2DViewer(_props: Props) {
     <div
       className="relative cursor-pointer select-none character-container character-draggable"
       style={{ width: displaySize, height: displaySize, opacity: spriteOpacity }}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
     >
       {/* PixiCanvas 常驻：选中 Live2D 模型后即使加载中也保持 */}
       {modelId !== "svg_fallback" && !modelFailed && (
@@ -130,14 +127,6 @@ export function Live2DViewer(_props: Props) {
       {/* SVG 回退 */}
       {(modelId === "svg_fallback" || modelFailed) && (
         <CharacterSVG state={personaState} size={spriteSize} />
-      )}
-
-      {isHovered && (
-        <div className="absolute -bottom-5 left-1/2 -translate-x-1/2 whitespace-nowrap
-                        text-xs text-gray-500 bg-white/80 px-2 py-0.5 rounded-full shadow
-                        animate-pulse z-20">
-          点击聊天
-        </div>
       )}
 
       {personaState === "thinking" && (

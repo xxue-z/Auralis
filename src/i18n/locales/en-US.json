@@ -25,6 +25,8 @@
     "model_window_ratio": "Model Window Ratio",
     "model_size": "Model Size",
     "model_opacity": "Model Opacity",
+    "click_zone_w": "Click Zone Width",
+    "click_zone_h": "Click Zone Height",
     "chat_theme_color": "Chat Theme Color",
     "chat_opacity": "Chat Opacity"
   },

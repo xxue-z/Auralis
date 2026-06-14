@@ -92,7 +92,11 @@ export function useAgent() {
 
       for (const cap of capabilities) {
         try {
-          const result = await executeWithConfirm(cap);
+          const capWithContext = {
+            ...cap,
+            context: cap.context || { os: "windows", user: "default", session_id: "default" },
+          };
+          const result = await executeWithConfirm(capWithContext);
           results.push(result);
         } catch (err: any) {
           results.push({

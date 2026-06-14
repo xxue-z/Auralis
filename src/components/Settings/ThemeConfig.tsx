@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { emit } from "@tauri-apps/api/event";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { ModelSelector } from "../Character/ModelSelector";
 
@@ -17,6 +18,15 @@ export function ThemeConfig() {
   const [tab, setTab] = useState<"live2d" | "chat">("live2d");
   const settings = useSettingsStore((s) => s.settings);
   const setSetting = useSettingsStore((s) => s.setSetting);
+  const guideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const emitClickGuide = () => {
+    emit("click-zone-preview", { show: true }).catch(() => {});
+    if (guideTimerRef.current) clearTimeout(guideTimerRef.current);
+    guideTimerRef.current = setTimeout(() => {
+      emit("click-zone-preview", { show: false }).catch(() => {});
+    }, 1500);
+  };
 
   const modelId = settings["appearance.model_id"] || "svg_fallback";
 
@@ -115,6 +125,43 @@ export function ThemeConfig() {
               step="0.05"
               value={spriteOpacity}
               onChange={(e) => setSetting(`model:${modelId}:sprite_opacity`, parseFloat(e.target.value))}
+              className="w-full mt-1 accent-primary-500"
+            />
+          </div>
+
+          <div>
+            <div className="flex justify-between items-center">
+              <label className="text-xs text-gray-500">{t("settings.click_zone_w")}</label>
+              <span className="text-xs text-gray-400">{settings["appearance.click_zone_w"] ?? 60}%</span>
+            </div>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              step="1"
+              value={settings["appearance.click_zone_w"] ?? 60}
+              onChange={(e) => {
+                setSetting("appearance.click_zone_w", parseInt(e.target.value));
+                emitClickGuide();
+              }}
+              className="w-full mt-1 accent-primary-500"
+            />
+          </div>
+          <div>
+            <div className="flex justify-between items-center">
+              <label className="text-xs text-gray-500">{t("settings.click_zone_h")}</label>
+              <span className="text-xs text-gray-400">{settings["appearance.click_zone_h"] ?? 80}%</span>
+            </div>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              step="1"
+              value={settings["appearance.click_zone_h"] ?? 80}
+              onChange={(e) => {
+                setSetting("appearance.click_zone_h", parseInt(e.target.value));
+                emitClickGuide();
+              }}
               className="w-full mt-1 accent-primary-500"
             />
           </div>

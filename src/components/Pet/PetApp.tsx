@@ -3,7 +3,9 @@ import {
   getCurrentWebviewWindow,
   WebviewWindow,
 } from "@tauri-apps/api/webviewWindow";
+import { listen } from "@tauri-apps/api/event";
 import { PhysicalPosition } from "@tauri-apps/api/dpi";
+import { cursorPosition } from "@tauri-apps/api/window";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { useAgentStore } from "../../stores/agentStore";
 import { Live2DViewer } from "../Character/Live2DViewer";
@@ -82,8 +84,30 @@ export function PetApp() {
   /** Ref to openChat so pointerUp can call it without ordering issues */
   const openChatRef = useRef<() => void>(() => {});
 
+  const clickZoneRef = useRef<HTMLDivElement>(null);
+  const guideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [showClickGuide, setShowClickGuide] = useState(false);
+
+  // ── Listen for click-zone-preview events (from settings) ──────
+  useEffect(() => {
+    const unlisten = listen<{ show: boolean }>("click-zone-preview", (event) => {
+      setShowClickGuide(event.payload.show);
+      if (event.payload.show) {
+        if (guideTimerRef.current) clearTimeout(guideTimerRef.current);
+        guideTimerRef.current = setTimeout(() => {
+          setShowClickGuide(false);
+        }, 1500);
+      }
+    });
+    return () => {
+      unlisten.then((fn) => fn());
+      if (guideTimerRef.current) clearTimeout(guideTimerRef.current);
+    };
+  }, []);
+
   const handlePointerDown = useCallback(
     (_e: React.PointerEvent) => {
+      if (_e.button !== 0) return;
       // Ignore if the event target is inside a no-drag region
       const target = _e.target as HTMLElement;
       if (target.closest("[data-tauri-no-drag]")) return;
@@ -150,21 +174,8 @@ export function PetApp() {
         // Native drag may have completed — save final position
         updatePetPosition();
       } else {
-        // Only open chat if click lands on actual rendered character content
-        const target = _e.target as HTMLElement;
-        const svg = target.closest("svg");
-        if (svg && target !== svg) {
-          // SVG mode: click on actual SVG child element (circle/path),
-          // not on empty SVG viewport space
-          openChatRef.current();
-        } else if (target.closest("canvas")) {
-          // Live2D mode: only open chat if Pixi detected a model hit
-          const isModelHit = !!(window as any).__live2dModelClick;
-          (window as any).__live2dModelClick = false;
-          if (isModelHit) {
-            openChatRef.current();
-          }
-        }
+        // Click zone is the only interactive area — any click opens chat
+        openChatRef.current();
       }
     },
     [updatePetPosition],
@@ -338,7 +349,112 @@ export function PetApp() {
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Listen for mode-changed events from tray ─────────────────
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail) {
+        useSettingsStore.getState().setSetting("appearance.mode", detail);
+      }
+    };
+    window.addEventListener("mode-changed", handler);
+    return () => window.removeEventListener("mode-changed", handler);
+  }, []);
+
+  // ── Interactive mode: polling + pointerleave hybrid ──────────
+  //     Default: setIgnoreCursorEvents(true) — clicks pass through to desktop.
+  //     Polling detects mouse entry into the click zone → toggle to false.
+  //     pointerleave on the click zone → toggle back to true (instant exit).
+  const mode =
+    useSettingsStore((s) => s.settings["appearance.mode"]) || "interactive";
+  const ignoringRef = useRef(true);
+  const clickZoneSizeRef = useRef({ w: 0, h: 0, win: 0 });
+
+  useEffect(() => {
+    if (mode !== "interactive") return;
+
+    let cancelled = false;
+
+    // Always start with pass-through enabled
+    appWindow.setIgnoreCursorEvents(true).catch(() => {});
+    ignoringRef.current = true;
+
+    const poll = async () => {
+      if (cancelled) return;
+      try {
+        const cursorPos = await cursorPosition();
+        const winPos = await appWindow.outerPosition();
+        const winW = window.innerWidth;
+        const winH = window.innerHeight;
+        const { w: czW, h: czH } = clickZoneSizeRef.current;
+        if (czW <= 0 || czH <= 0) {
+          requestAnimationFrame(poll);
+          return;
+        }
+        const halfW = (winW - czW) / 2;
+        const halfH = (winH - czH) / 2;
+        const czLeft = winPos.x + halfW;
+        const czRight = czLeft + czW;
+        const czTop = winPos.y + halfH;
+        const czBottom = czTop + czH;
+
+        const isOver =
+          cursorPos.x >= czLeft && cursorPos.x <= czRight &&
+          cursorPos.y >= czTop && cursorPos.y <= czBottom;
+
+        // Only toggle when the state actually changes (avoids redundant IPC)
+        if (isOver && ignoringRef.current) {
+          ignoringRef.current = false;
+          await appWindow.setIgnoreCursorEvents(false);
+        }
+        // Exit is handled by pointerleave on the click zone div
+      } catch {
+        // ignore polling errors
+      }
+      requestAnimationFrame(poll);
+    };
+    requestAnimationFrame(poll);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [appWindow, mode]);
+
+  // pointerleave on click zone: immediate cursor exit detection
+  const handleClickZoneLeave = useCallback(() => {
+    if (mode === "interactive" && !ignoringRef.current) {
+      ignoringRef.current = true;
+      appWindow.setIgnoreCursorEvents(true).catch(() => {});
+    }
+  }, [appWindow, mode]);
+
+  // ── Mode switch (show/hide + focus-mode override) ────────────
+  useEffect(() => {
+    if (mode === "hidden") {
+      appWindow.hide().catch(() => {});
+    } else {
+      appWindow.show().catch(() => {});
+      if (mode === "focus") {
+        appWindow.setIgnoreCursorEvents(true).catch(() => {});
+        ignoringRef.current = true;
+      }
+      // "interactive" mode: the polling / pointerleave hybrid handles it
+    }
+  }, [appWindow, mode]);
+
   // ── Render ───────────────────────────────────────────────────
+  const settings = useSettingsStore((s) => s.settings);
+  const modelId = settings["appearance.model_id"] || "svg_fallback";
+  const spriteSize = settings[`model:${modelId}:sprite_size`] ?? settings["appearance.sprite_size"] ?? 96;
+  const winSize = spriteSize + 40;
+  const czWPct = settings["appearance.click_zone_w"] ?? 60;
+  const czHPct = settings["appearance.click_zone_h"] ?? 80;
+  const clickZoneW = Math.round(winSize * czWPct / 100);
+  const clickZoneH = Math.round(winSize * czHPct / 100);
+
+  // Sync click zone dimensions into ref for polling loop
+  clickZoneSizeRef.current = { w: clickZoneW, h: clickZoneH, win: winSize };
+
   if (showOnboarding) {
     return (
       <div
@@ -357,12 +473,62 @@ export function PetApp() {
   return (
     <div
       className="pet-app-root"
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
-      onPointerCancel={handlePointerCancel}
+      style={{ pointerEvents: "none" }}
     >
       <Live2DViewer />
+
+      {/* Transparent click zone overlay — the only interactive area */}
+      <div
+        ref={clickZoneRef}
+        style={{
+          position: "absolute",
+          left: "50%",
+          top: "50%",
+          transform: "translate(-50%, -50%)",
+          width: clickZoneW,
+          height: clickZoneH,
+          pointerEvents: "auto" as any,
+          cursor: "default",
+          zIndex: 10,
+          ...(showClickGuide
+            ? {
+                outline: "2px dashed #0ea5e9",
+                outlineOffset: -2,
+                background: "rgba(14,165,233,0.08)",
+              }
+            : {}),
+        }}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerCancel}
+        onPointerLeave={handleClickZoneLeave}
+        onContextMenu={(e) => e.preventDefault()}
+      >
+        {/* Guide mouse icon at center */}
+        {showClickGuide && (
+          <div
+            style={{
+              position: "absolute",
+              left: "50%",
+              top: "50%",
+              transform: "translate(-50%, -50%)",
+              width: 32,
+              height: 32,
+              background: "rgba(14,165,233,0.4)",
+              borderRadius: "50%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 18,
+              pointerEvents: "none",
+            }}
+          >
+            🖱
+          </div>
+        )}
+      </div>
+
       <ConfirmDialog />
     </div>
   );
