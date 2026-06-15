@@ -5,7 +5,6 @@
 
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { confirm } from "@tauri-apps/plugin-dialog";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { loadRegistry, getModels, addModel, removeModel } from "./live2dService";
 import { ModelImporter } from "./ModelImporter";
@@ -13,14 +12,13 @@ import type { Live2DModelConfig } from "../../types/live2d";
 
 export function ModelSelector() {
   const [models, setModels] = useState<Live2DModelConfig[]>([]);
-  const [saved, setSaved] = useState(false);
+  const [deletingModel, setDeletingModel] = useState<Live2DModelConfig | null>(null);
   const settings = useSettingsStore((s) => s.settings);
   const currentModelId = settings["appearance.model_id"] || "svg_fallback";
   const setSetting = useSettingsStore((s) => s.setSetting);
 
   useEffect(() => {
     loadRegistry().then(() => {
-      // 从 localStorage 恢复已导入的模型
       try {
         for (let i = 0; i < localStorage.length; i++) {
           const key = localStorage.key(i);
@@ -39,13 +37,9 @@ export function ModelSelector() {
 
   const handleSelect = (modelId: string) => {
     setSetting("appearance.model_id", modelId);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 1500);
   };
 
-  const handleDelete = async (model: Live2DModelConfig) => {
-    const ok = await confirm(`确认删除模型「${model.name}」？模型文件将被永久删除。`, { title: "删除模型", kind: "warning" });
-    if (!ok) return;
+  const handleDelete = (model: Live2DModelConfig) => {
     removeModel(model.id);
     if (model.modelDir) {
       invoke("delete_model_dir", { path: model.modelDir }).catch(() => {});
@@ -54,6 +48,7 @@ export function ModelSelector() {
       setSetting("appearance.model_id", "svg_fallback");
     }
     setModels([...getModels()]);
+    setDeletingModel(null);
   };
 
   return (
@@ -114,7 +109,7 @@ export function ModelSelector() {
                   打开
                 </button>
                 <button
-                  onClick={() => handleDelete(model)}
+                  onClick={() => setDeletingModel(model)}
                   className="text-red-400 hover:text-red-600 text-[10px]"
                 >
                   删除
@@ -135,10 +130,28 @@ export function ModelSelector() {
         setSetting("appearance.model_id", config.id);
       }} />
 
-      {/* 保存提示 */}
-      {saved && (
-        <div className="text-xs text-center text-green-600 py-1 animate-pulse">
-          ✅ 已应用
+      {/* 遮罩确认弹窗 */}
+      {deletingModel && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+          <div className="w-72 p-4 rounded-lg bg-white border border-red-200 shadow-lg space-y-3">
+            <p className="text-xs text-red-700 leading-relaxed">
+              确认删除模型「<span className="font-medium">{deletingModel.name}</span>」？模型文件将被永久删除。
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setDeletingModel(null)}
+                className="px-3 py-1.5 text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-md hover:bg-gray-100"
+              >
+                取消
+              </button>
+              <button
+                onClick={() => handleDelete(deletingModel)}
+                className="px-3 py-1.5 text-xs text-white bg-red-500 rounded-md hover:bg-red-600"
+              >
+                确认删除
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
