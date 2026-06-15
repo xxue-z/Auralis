@@ -67,17 +67,17 @@ export function GeneralSettings() {
       {/* 扩展文件夹路径 */}
       <div>
         <label className="text-xs font-medium text-gray-700 block mb-1">
-          程序扩展文件夹
+          {t("settings.general_ext_folder")}
         </label>
         <p className="text-[10px] text-gray-400 mb-2">
-          所有扩展文件（导入的模型、附加功能等）将按类目存放在此路径下
+          {t("settings.general_ext_desc")}
         </p>
         <div className="flex items-center gap-2">
           <input
             type="text"
             readOnly
             value={displayPath}
-            placeholder="正在获取默认路径..."
+            placeholder={t("settings.general_fetching_path")}
             className="flex-1 text-xs px-2 py-1.5 border border-gray-200 rounded bg-gray-50
                        focus:outline-none"
           />
@@ -88,12 +88,12 @@ export function GeneralSettings() {
                        border border-indigo-200 rounded-lg hover:bg-indigo-100
                        disabled:opacity-50 transition-colors"
           >
-            {migrating ? "迁移中..." : "选择文件夹"}
+              {migrating ? t("settings.general_migrating") : t("settings.general_select_folder")}
           </button>
         </div>
         {!settings["general.extensions_path"] && defaultPath && (
           <p className="mt-1 text-[10px] text-gray-400">
-            默认路径：{defaultPath}
+            {t("settings.general_default_path")}{defaultPath}
           </p>
         )}
         {settings["general.extensions_path"] && (
@@ -101,7 +101,7 @@ export function GeneralSettings() {
             onClick={() => setSetting("general.extensions_path", "")}
             className="mt-1 text-[10px] text-gray-400 hover:text-red-500 transition-colors"
           >
-            恢复默认路径
+            {t("settings.general_reset_path")}
           </button>
         )}
       </div>

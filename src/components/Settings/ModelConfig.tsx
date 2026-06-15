@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { useAgentStore } from "../../stores/agentStore";
 import {
@@ -26,6 +27,7 @@ async function ensureWsConnected(): Promise<boolean> {
 type Tab = "cloud" | "local";
 
 export function ModelConfig() {
+  const { t } = useTranslation();
   const [tab, setTab] = useState<Tab>("cloud");
 
   return (
@@ -39,7 +41,7 @@ export function ModelConfig() {
               : "text-gray-500"
           }`}
         >
-          ☁️ 云端模型
+          {t("settings.model_tab_cloud")}
         </button>
         <button
           onClick={() => setTab("local")}
@@ -49,7 +51,7 @@ export function ModelConfig() {
               : "text-gray-500"
           }`}
         >
-          💻 本地模型
+          {t("settings.model_tab_local")}
         </button>
       </div>
 
@@ -61,6 +63,7 @@ export function ModelConfig() {
 // ============ 云端模型配置 ============
 
 function CloudModelConfig() {
+  const { t } = useTranslation();
   const settings = useSettingsStore((s) => s.settings);
   const setSetting = useSettingsStore((s) => s.setSetting);
   const [vendors, setVendors] = useState<Vendor[]>([]);
@@ -79,7 +82,7 @@ function CloudModelConfig() {
     });
   }, []);
 
-  const CUSTOM_VENDOR = "自定义";
+  const CUSTOM_VENDOR = t("settings.model_custom");
 
   // 选择厂商时自动填充
   const handleVendorChange = (vendorName: string) => {
@@ -105,7 +108,7 @@ function CloudModelConfig() {
 
     const ok = await ensureWsConnected();
     if (!ok) {
-      setCloudTest({ testing: false, success: false, message: "无法连接到 Agent 后端，请确认程序已启动" });
+      setCloudTest({ testing: false, success: false, message: t("settings.model_test_error") });
       return;
     }
 
@@ -126,7 +129,7 @@ function CloudModelConfig() {
       if (cloudTestRef.current) {
         wsService.off("model_test_result", cloudTestRef.current);
         cloudTestRef.current = null;
-        setCloudTest(prev => prev.testing ? { testing: false, success: false, message: "请求超时" } : prev);
+        setCloudTest(prev => prev.testing ? { testing: false, success: false, message: t("settings.model_test_timeout") } : prev);
       }
     }, (settings["model.timeout"] || 120) * 1000);
   };
@@ -140,14 +143,14 @@ function CloudModelConfig() {
   }, []);
 
   if (loading) {
-    return <div className="text-xs text-gray-400 text-center py-4">加载中...</div>;
+    return <div className="text-xs text-gray-400 text-center py-4">{t("settings.model_loading")}</div>;
   }
 
   return (
     <div className="space-y-3">
       {/* 启用开关 */}
       <ToggleSetting
-        label="启用云端模型"
+        label={t("settings.model_enable_cloud")}
         settingKey="model.cloud.enabled"
       />
 
@@ -155,7 +158,7 @@ function CloudModelConfig() {
         <>
           {/* 厂商选择 */}
           <div>
-            <label className="text-xs text-gray-500">厂商</label>
+            <label className="text-xs text-gray-500">{t("settings.model_vendor")}</label>
             <select
               value={selectedVendor}
               onChange={(e) => handleVendorChange(e.target.value)}
@@ -167,7 +170,7 @@ function CloudModelConfig() {
                     {v.vendor} — {v.description}
                   </option>
                 ))}
-                <option value={CUSTOM_VENDOR}>自定义 — 手动配置 API 地址和模型</option>
+                <option value={CUSTOM_VENDOR}>{t("settings.model_custom_option")}</option>
             </select>
           </div>
 
@@ -182,7 +185,7 @@ function CloudModelConfig() {
                   rel="noopener noreferrer"
                   className="ml-1 text-primary-500 hover:underline"
                 >
-                  获取 Key →
+                  {t("settings.model_get_key")}
                 </a>
               )}
             </label>
@@ -198,7 +201,7 @@ function CloudModelConfig() {
 
           {/* Base URL */}
           <div>
-            <label className="text-xs text-gray-500">API 地址</label>
+            <label className="text-xs text-gray-500">{t("settings.model_api_base")}</label>
             <input
               type="text"
               value={settings["model.cloud.base_url"] || ""}
@@ -210,27 +213,27 @@ function CloudModelConfig() {
 
           {/* 协议 */}
           <div>
-            <label className="text-xs text-gray-500">API 协议</label>
+            <label className="text-xs text-gray-500">{t("settings.model_api_protocol")}</label>
             <select
               value={settings["model.cloud.api_protocol"] || "openai"}
               onChange={(e) => setSetting("model.cloud.api_protocol", e.target.value)}
               className="w-full mt-1 text-xs px-2 py-1.5 border border-gray-200 rounded bg-white/80
                          focus:outline-none focus:border-primary-400"
             >
-              <option value="openai">OpenAI 兼容</option>
-              <option value="anthropic">Anthropic</option>
+              <option value="openai">{t("settings.model_openai_compat")}</option>
+              <option value="anthropic">{t("settings.model_anthropic")}</option>
             </select>
           </div>
 
           {/* 模型选择 */}
           <div>
-            <label className="text-xs text-gray-500">模型</label>
+            <label className="text-xs text-gray-500">{t("settings.model_model")}</label>
             <input
               type="text"
               list="cloud-model-list"
               value={settings["model.cloud.model_id"] || ""}
               onChange={(e) => setSetting("model.cloud.model_id", e.target.value)}
-              placeholder="选择或输入模型名称"
+              placeholder={t("settings.model_model_placeholder")}
               className="w-full mt-1 text-xs px-2 py-1.5 border border-gray-200 rounded bg-white/80
                          focus:outline-none focus:border-primary-400"
             />
@@ -245,7 +248,7 @@ function CloudModelConfig() {
 
           {/* 超时 */}
           <div>
-            <label className="text-xs text-gray-500">超时（秒）</label>
+            <label className="text-xs text-gray-500">{t("settings.model_timeout_sec")}</label>
             <input
               type="number"
               min={5}
@@ -266,7 +269,7 @@ function CloudModelConfig() {
                          disabled:opacity-50 disabled:cursor-not-allowed
                          bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
             >
-              {cloudTest.testing ? "⏳ 测试中..." : "🔍 测试连接"}
+              {cloudTest.testing ? t("settings.model_testing") : t("settings.model_test_connection")}
             </button>
             {!cloudTest.testing && cloudTest.message && (
               <div
@@ -289,6 +292,7 @@ function CloudModelConfig() {
 // ============ 本地模型配置（Ollama）============
 
 function LocalModelConfig() {
+  const { t } = useTranslation();
   const settings = useSettingsStore((s) => s.settings);
   const setSetting = useSettingsStore((s) => s.setSetting);
   const [ollamaConnected, setOllamaConnected] = useState<boolean | null>(null);
@@ -315,7 +319,7 @@ function LocalModelConfig() {
 
     const ok = await ensureWsConnected();
     if (!ok) {
-      setLocalTest({ testing: false, success: false, message: "无法连接到 Agent 后端，请确认程序已启动" });
+      setLocalTest({ testing: false, success: false, message: t("settings.model_test_error") });
       return;
     }
 
@@ -336,7 +340,7 @@ function LocalModelConfig() {
       if (localTestRef.current) {
         wsService.off("model_test_result", localTestRef.current);
         localTestRef.current = null;
-        setLocalTest(prev => prev.testing ? { testing: false, success: false, message: "请求超时" } : prev);
+        setLocalTest(prev => prev.testing ? { testing: false, success: false, message: t("settings.model_test_timeout") } : prev);
       }
     }, (settings["model.timeout"] || 120) * 1000);
   };
@@ -353,16 +357,16 @@ function LocalModelConfig() {
     <div className="space-y-3">
       {/* 启用开关 */}
       <ToggleSetting
-        label="启用本地模型"
+        label={t("settings.model_enable_local")}
         settingKey="model.local.enabled"
       />
 
       {/* Ollama 引导 */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-gray-600 space-y-1.5">
         <p className="font-medium text-gray-800">
-          需要安装 Ollama 才能使用本地模型
+          {t("settings.model_ollama_required")}
         </p>
-        <p>Ollama 是一个本地大模型运行框架，安装后 Auralis 可以离线使用 AI 能力。</p>
+        <p>{t("settings.model_ollama_desc")}</p>
         <div className="flex gap-3">
           <a
             href="https://ollama.com/download"
@@ -370,7 +374,7 @@ function LocalModelConfig() {
             rel="noopener noreferrer"
             className="text-primary-500 hover:underline"
           >
-            📥 下载 Ollama
+            {t("settings.model_download_ollama")}
           </a>
           <a
             href="https://ollama.com/blog/openai-compatibility"
@@ -378,11 +382,11 @@ function LocalModelConfig() {
             rel="noopener noreferrer"
             className="text-primary-500 hover:underline"
           >
-            📖 配置文档
+            {t("settings.model_config_doc")}
           </a>
         </div>
         <p className="text-gray-400">
-          安装后运行: <code className="bg-gray-100 px-1 rounded">ollama pull qwen2.5:1.5b</code>
+          {t("settings.model_after_install")} <code className="bg-gray-100 px-1 rounded">ollama pull qwen2.5:1.5b</code>
         </p>
       </div>
 
@@ -390,19 +394,19 @@ function LocalModelConfig() {
         <>
           {/* 连接状态 */}
           <div className="flex items-center gap-2 text-xs">
-            <span>状态:</span>
+            <span>{t("settings.model_status")}</span>
             {ollamaConnected === null ? (
-              <span className="text-gray-400">检测中...</span>
+              <span className="text-gray-400">{t("settings.model_checking")}</span>
             ) : ollamaConnected ? (
-              <span className="text-green-600">🟢 已连接</span>
+              <span className="text-green-600">{t("settings.model_connected")}</span>
             ) : (
-              <span className="text-red-500">🔴 未连接（请确认 Ollama 已启动）</span>
+              <span className="text-red-500">{t("settings.model_disconnected")}</span>
             )}
           </div>
 
           {/* API 地址 */}
           <div>
-            <label className="text-xs text-gray-500">Ollama 地址</label>
+            <label className="text-xs text-gray-500">{t("settings.model_ollama_url")}</label>
             <input
               type="text"
               value={baseUrl}
@@ -414,7 +418,7 @@ function LocalModelConfig() {
 
           {/* 模型选择 */}
           <div>
-            <label className="text-xs text-gray-500">模型</label>
+            <label className="text-xs text-gray-500">{t("settings.model_model")}</label>
             {models.length > 0 ? (
               <select
                 value={settings["model.local.model_id"] || ""}
@@ -442,7 +446,7 @@ function LocalModelConfig() {
 
           {/* 超时 */}
           <div>
-            <label className="text-xs text-gray-500">超时（秒）</label>
+            <label className="text-xs text-gray-500">{t("settings.model_timeout_sec")}</label>
             <input
               type="number"
               min={5}
@@ -463,7 +467,7 @@ function LocalModelConfig() {
                          disabled:opacity-50 disabled:cursor-not-allowed
                          bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
             >
-              {localTest.testing ? "⏳ 测试中..." : "🔍 测试连接"}
+              {localTest.testing ? t("settings.model_testing") : t("settings.model_test_connection")}
             </button>
             {!localTest.testing && localTest.message && (
               <div
@@ -482,8 +486,8 @@ function LocalModelConfig() {
 
       {/* 自动切换 */}
       <ToggleSetting
-        label="自动切换"
-        description="云端不可用时自动切换到本地模型"
+        label={t("settings.model_auto_switch")}
+        description={t("settings.model_auto_switch_desc")}
         settingKey="model.auto_switch"
       />
     </div>

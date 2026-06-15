@@ -5,12 +5,12 @@ import { useSettingsStore } from "../../stores/settingsStore";
 import { ModelSelector } from "../Character/ModelSelector";
 
 const PRESET_COLORS = [
-  { name: "蓝色", value: "#0ea5e9" },
-  { name: "紫色", value: "#a855f7" },
-  { name: "绿色", value: "#22c55e" },
-  { name: "粉色", value: "#ec4899" },
-  { name: "橙色", value: "#f97316" },
-  { name: "红色", value: "#ef4444" },
+  { nameKey: "theme_color_blue", value: "#0ea5e9" },
+  { nameKey: "theme_color_purple", value: "#a855f7" },
+  { nameKey: "theme_color_green", value: "#22c55e" },
+  { nameKey: "theme_color_pink", value: "#ec4899" },
+  { nameKey: "theme_color_orange", value: "#f97316" },
+  { nameKey: "theme_color_red", value: "#ef4444" },
 ];
 
 export function ThemeConfig() {
@@ -183,7 +183,7 @@ export function ThemeConfig() {
                       : "border-transparent"
                   }`}
                   style={{ background: c.value }}
-                  title={c.name}
+                  title={t(`settings.${c.nameKey}`)}
                 />
               ))}
               <input

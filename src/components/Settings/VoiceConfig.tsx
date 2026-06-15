@@ -1,9 +1,11 @@
 import { useState, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { cloneVoice, generateVoice } from "../../services/voice";
 import { playAudio } from "../../services/audio";
 
 export function VoiceConfig() {
+  const { t } = useTranslation();
   const settings = useSettingsStore((s) => s.settings);
   const setSetting = useSettingsStore((s) => s.setSetting);
   const [description, setDescription] = useState("");
@@ -14,12 +16,12 @@ export function VoiceConfig() {
 
   // 预设音线
   const PRESETS = [
-    { id: "sweet_female", emoji: "🌸", name: "甜美女声" },
-    { id: "cute_female", emoji: "🐱", name: "软萌女声" },
-    { id: "cool_female", emoji: "🌊", name: "清冷女声" },
-    { id: "gentle_male", emoji: "🌿", name: "温柔男声" },
-    { id: "energetic_male", emoji: "⚡", name: "活泼男声" },
-    { id: "neutral", emoji: "🎭", name: "中性音" },
+    { id: "sweet_female", emoji: "🌸", nameKey: "voice_preset_sweet_female" },
+    { id: "cute_female", emoji: "🐱", nameKey: "voice_preset_cute_female" },
+    { id: "cool_female", emoji: "🌊", nameKey: "voice_preset_cool_female" },
+    { id: "gentle_male", emoji: "🌿", nameKey: "voice_preset_gentle_male" },
+    { id: "energetic_male", emoji: "⚡", nameKey: "voice_preset_energetic_male" },
+    { id: "neutral", emoji: "🎭", nameKey: "voice_preset_neutral" },
   ];
 
   // AI 生成音线
@@ -59,7 +61,7 @@ export function VoiceConfig() {
     <div className="space-y-4">
       {/* 启用语音 */}
       <div className="flex items-center justify-between">
-        <span className="text-xs text-gray-700">启用语音回答</span>
+        <span className="text-xs text-gray-700">{t("settings.voice_enable")}</span>
         <button
           onClick={() => setSetting("voice.enabled", !settings["voice.enabled"])}
           className={`w-10 h-5 rounded-full transition-colors ${
@@ -78,13 +80,13 @@ export function VoiceConfig() {
         <>
           {/* TTS 引擎选择 */}
           <div>
-            <label className="text-xs text-gray-500 block mb-2">TTS 引擎</label>
+            <label className="text-xs text-gray-500 block mb-2">{t("settings.voice_tts_engine")}</label>
             <div className="grid grid-cols-2 gap-1.5">
               {[
-                { id: "edge", name: "Edge TTS", desc: "免费" },
-                { id: "xiaomi", name: "小米 MiMo", desc: "云端" },
-                { id: "openai", name: "OpenAI", desc: "付费" },
-                { id: "kokoro", name: "Kokoro", desc: "本地测试版" },
+                { id: "edge", name: "Edge TTS", descKey: "voice_engine_free" },
+                { id: "xiaomi", name: "小米 MiMo", descKey: "voice_engine_cloud" },
+                { id: "openai", name: "OpenAI", descKey: "voice_engine_paid" },
+                { id: "kokoro", name: "Kokoro", descKey: "voice_engine_local_beta" },
               ].map((e) => (
                 <button
                   key={e.id}
@@ -96,7 +98,7 @@ export function VoiceConfig() {
                   }`}
                 >
                   <div className="font-medium">{e.name}</div>
-                  <div className="text-[10px] opacity-60">{e.desc}</div>
+                  <div className="text-[10px] opacity-60">{t(`settings.${e.descKey}`)}</div>
                 </button>
               ))}
             </div>
@@ -104,7 +106,7 @@ export function VoiceConfig() {
 
           {/* 预设音线选择 */}
           <div>
-            <label className="text-xs text-gray-500 block mb-2">预设音线</label>
+            <label className="text-xs text-gray-500 block mb-2">{t("settings.voice_presets")}</label>
             <div className="grid grid-cols-3 gap-1.5">
               {PRESETS.map((v) => (
                 <button
@@ -117,7 +119,7 @@ export function VoiceConfig() {
                   }`}
                 >
                   <div className="text-base mb-0.5">{v.emoji}</div>
-                  {v.name}
+                  {t(`settings.${v.nameKey}`)}
                 </button>
               ))}
             </div>
@@ -125,7 +127,7 @@ export function VoiceConfig() {
 
           {/* 上传音频克隆 */}
           <div>
-            <label className="text-xs text-gray-500 block mb-2">声音克隆</label>
+            <label className="text-xs text-gray-500 block mb-2">{t("settings.voice_voice_clone")}</label>
             <input
               ref={fileInputRef}
               type="file"
@@ -139,19 +141,19 @@ export function VoiceConfig() {
               className="w-full py-2 text-xs text-gray-600 bg-gray-50 border border-gray-200
                          rounded-lg hover:bg-gray-100 disabled:opacity-50 transition-colors"
             >
-              {cloning ? "克隆中..." : "📤 上传音频克隆音色（3-10秒）"}
+              {cloning ? t("settings.voice_clone_loading") : t("settings.voice_clone_button")}
             </button>
           </div>
 
           {/* AI 生成音线 */}
           <div>
-            <label className="text-xs text-gray-500 block mb-2">AI 生成音线</label>
+            <label className="text-xs text-gray-500 block mb-2">{t("settings.voice_ai_generate")}</label>
             <div className="flex gap-2">
               <input
                 type="text"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="描述想要的音色，如：低沉沙哑的男声"
+                placeholder={t("settings.voice_ai_placeholder")}
                 className="flex-1 text-xs px-2 py-1.5 border border-gray-200 rounded-lg bg-white/80
                            focus:outline-none focus:border-primary-400"
               />
@@ -161,7 +163,7 @@ export function VoiceConfig() {
                 className="px-3 py-1.5 text-xs text-white bg-primary-500 rounded-lg
                            hover:bg-primary-600 disabled:opacity-50 transition-colors"
               >
-                {generating ? "生成中..." : "生成"}
+                {generating ? t("settings.voice_generating") : t("settings.voice_generate")}
               </button>
             </div>
           </div>
@@ -176,13 +178,13 @@ export function VoiceConfig() {
                     onClick={() => playAudio(generated.preview_audio)}
                     className="text-xs text-primary-500 hover:underline"
                   >
-                    试听
+                    {t("settings.voice_preview")}
                   </button>
                   <button
                     onClick={applyGenerated}
                     className="text-xs text-green-600 hover:underline"
                   >
-                    应用
+                    {t("settings.voice_apply")}
                   </button>
                 </div>
               </div>
@@ -194,7 +196,7 @@ export function VoiceConfig() {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <div className="flex justify-between items-center">
-                <label className="text-xs text-gray-500">语速</label>
+                <label className="text-xs text-gray-500">{t("settings.voice_speed")}</label>
                 <span className="text-xs text-gray-400">{settings["voice.speed"]}</span>
               </div>
               <input
@@ -209,7 +211,7 @@ export function VoiceConfig() {
             </div>
             <div>
               <div className="flex justify-between items-center">
-                <label className="text-xs text-gray-500">音调</label>
+                <label className="text-xs text-gray-500">{t("settings.voice_pitch")}</label>
                 <span className="text-xs text-gray-400">{settings["voice.pitch"]}</span>
               </div>
               <input

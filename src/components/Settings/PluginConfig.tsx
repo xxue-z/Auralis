@@ -76,7 +76,7 @@ export function PluginConfig() {
       );
     } catch (e) {
       console.error("加载插件列表失败:", e);
-      setError("加载插件列表失败");
+      setError(t("settings.plugin_empty"));
     } finally {
       setLoading(false);
     }
@@ -127,12 +127,12 @@ export function PluginConfig() {
       await invoke("delete_user_plugin", { pluginId: id, extensionsPath: base });
       setPlugins((prev) => prev.filter((p) => p.id !== id));
     } catch (e) {
-      console.error("删除插件失败:", e);
+      console.error(t("settings.plugin_delete"), e);
     }
   };
 
   const handleImportFolder = async () => {
-    const selected = await open({ multiple: false, directory: true, title: "选择插件目录" });
+    const selected = await open({ multiple: false, directory: true, title: t("settings.plugin_select_folder_title") });
     if (!selected) return;
     try {
       const base = await resolvePluginsDir(extensionsPath);
@@ -142,12 +142,12 @@ export function PluginConfig() {
       });
       setPlugins((prev) => [...prev, { ...info, enabled: true }]);
     } catch (e: any) {
-      alert(`导入失败: ${e}`);
+      alert(`${t("settings.plugin_import_failed")}: ${e}`);
     }
   };
 
   const handleImportZip = async () => {
-    const selected = await open({ multiple: false, filters: [{ name: "ZIP", extensions: ["zip"] }], title: "选择插件压缩包" });
+    const selected = await open({ multiple: false, filters: [{ name: "ZIP", extensions: ["zip"] }], title: t("settings.plugin_select_zip_title") });
     if (!selected) return;
     try {
       const base = await resolvePluginsDir(extensionsPath);
@@ -157,7 +157,7 @@ export function PluginConfig() {
       });
       setPlugins((prev) => [...prev, { ...info, enabled: true }]);
     } catch (e: any) {
-      alert(`导入失败: ${e}`);
+      alert(`${t("settings.plugin_import_failed")}: ${e}`);
     }
   };
 
@@ -179,7 +179,7 @@ export function PluginConfig() {
                        border border-indigo-200 rounded-lg hover:bg-indigo-100
                        transition-colors flex items-center gap-1"
           >
-            导入插件
+            {t("settings.plugin_import")}
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M6 9l6 6 6-6" />
             </svg>
@@ -193,7 +193,7 @@ export function PluginConfig() {
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
                 </svg>
-                文件夹导入
+                {t("settings.plugin_import_folder")}
               </button>
               <button
                 onClick={() => { setMenuOpen(false); handleImportZip(); }}
@@ -205,7 +205,7 @@ export function PluginConfig() {
                   <line x1="16" y1="13" x2="8" y2="13" />
                   <line x1="16" y1="17" x2="8" y2="17" />
                 </svg>
-                ZIP导入
+                {t("settings.plugin_import_zip")}
               </button>
             </div>
           )}
@@ -214,13 +214,13 @@ export function PluginConfig() {
 
       <div className="border border-gray-200 rounded-lg overflow-hidden">
         {loading && (
-          <div className="text-center py-8 text-xs text-gray-400">加载中...</div>
+          <div className="text-center py-8 text-xs text-gray-400">{t("settings.plugin_loading")}</div>
         )}
         {error && (
           <div className="text-center py-8 text-xs text-red-400">{error}</div>
         )}
         {!loading && !error && filtered.length === 0 && (
-          <div className="text-center py-8 text-xs text-gray-400">暂无插件</div>
+          <div className="text-center py-8 text-xs text-gray-400">{t("settings.plugin_empty")}</div>
         )}
 
         {!loading && filtered.map((plugin) => (
@@ -249,7 +249,7 @@ export function PluginConfig() {
                     ? "text-green-500 hover:bg-green-50"
                     : "text-gray-400 hover:bg-gray-100"
                 }`}
-                title={plugin.enabled ? "停用" : "启用"}
+                title={plugin.enabled ? t("settings.plugin_disable") : t("settings.plugin_enable")}
               >
                 <PowerIcon />
               </button>
@@ -258,7 +258,7 @@ export function PluginConfig() {
                   onClick={() => deletePlugin(plugin.id)}
                   className="w-7 h-7 flex items-center justify-center rounded-md
                              text-red-400 hover:bg-red-50 hover:text-red-500 transition-colors"
-                  title="删除"
+                  title={t("settings.plugin_delete")}
                 >
                   <TrashIcon />
                 </button>
