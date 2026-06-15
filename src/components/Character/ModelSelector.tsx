@@ -6,7 +6,7 @@
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useSettingsStore } from "../../stores/settingsStore";
-import { loadRegistry, getModels } from "./live2dService";
+import { loadRegistry, getModels, addModel } from "./live2dService";
 import { ModelImporter } from "./ModelImporter";
 import type { Live2DModelConfig } from "../../types/live2d";
 
@@ -19,7 +19,20 @@ export function ModelSelector() {
 
   useEffect(() => {
     loadRegistry().then(() => {
-      setModels(getModels());
+      // 从 localStorage 恢复已导入的模型
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key?.startsWith("imported_model:")) {
+            const raw = localStorage.getItem(key);
+            if (raw) {
+              const config = JSON.parse(raw) as Live2DModelConfig;
+              addModel(config);
+            }
+          }
+        }
+      } catch {}
+      setModels([...getModels()]);
     });
   }, []);
 

@@ -87,6 +87,7 @@ export function Live2DViewer(_props: Props) {
     }
     if (!config) {
       setModelConfig(null);
+      setModelFailed(false);
       return;
     }
 
@@ -140,6 +141,7 @@ export function Live2DViewer(_props: Props) {
       {/* PixiCanvas 常驻：选中 Live2D 模型后即使加载中也保持 */}
       {modelId !== "svg_fallback" && !modelFailed && (
         <PixiCanvas
+          key={modelId}
           width={displaySize}
           height={displaySize}
           onApp={handlePixiApp}

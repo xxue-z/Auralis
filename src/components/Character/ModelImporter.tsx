@@ -26,7 +26,6 @@ interface ModelImporterProps {
 export function ModelImporter({ onImported }: ModelImporterProps) {
   const [importing, setImporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [lastModel, setLastModel] = useState<ExtractModelResult | null>(null);
   const [progress, setProgress] = useState<ExtractProgress | null>(null);
   const unlistenRef = useRef<UnlistenFn | null>(null);
   const extensionsPath = useSettingsStore((s) => s.settings["general.extensions_path"]);
@@ -45,8 +44,7 @@ export function ModelImporter({ onImported }: ModelImporterProps) {
     if (!selected) return;
 
     setImporting(true);
-    setError(null);
-    setLastModel(null);
+      setError(null);
     setProgress(null);
 
     // 监听 Rust 进度事件
@@ -90,7 +88,6 @@ export function ModelImporter({ onImported }: ModelImporterProps) {
         localStorage.setItem(key, JSON.stringify(config));
       } catch {}
 
-      setLastModel(result);
       onImported?.(config);
     } catch (e: any) {
       setError(e.message || e || "导入失败");
@@ -128,19 +125,6 @@ export function ModelImporter({ onImported }: ModelImporterProps) {
       </button>
       {error && (
         <p className="text-xs text-red-500 mt-1">{error}</p>
-      )}
-      {lastModel && (
-        <div className="text-xs text-gray-500 space-y-1 mt-2 p-2 bg-gray-50 rounded-lg">
-          <p className="truncate" title={lastModel.model_dir}>
-            存储位置：{lastModel.model_dir}
-          </p>
-          <button
-            onClick={() => invoke("open_in_explorer", { path: lastModel.model_dir })}
-            className="text-blue-500 hover:text-blue-700 underline"
-          >
-            打开文件夹
-          </button>
-        </div>
       )}
     </div>
   );
