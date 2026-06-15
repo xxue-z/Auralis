@@ -169,6 +169,11 @@ pub fn run() {
             commands::delete_model_dir,
             commands::get_app_data_dir,
             commands::migrate_extensions,
+            commands::list_system_plugins,
+            commands::list_user_plugins,
+            commands::import_plugin,
+            commands::import_plugin_zip,
+            commands::delete_user_plugin,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

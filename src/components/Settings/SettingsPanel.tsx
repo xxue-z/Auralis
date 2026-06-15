@@ -4,8 +4,9 @@ import { GeneralSettings } from "./GeneralSettings";
 import { ModelConfig } from "./ModelConfig";
 import { ThemeConfig } from "./ThemeConfig";
 import { VoiceConfig } from "./VoiceConfig";
+import { PluginConfig } from "./PluginConfig";
 
-type Section = "general" | "model" | "theme" | "voice";
+type Section = "general" | "model" | "theme" | "voice" | "plugins";
 
 const NAV_ITEMS: {
   key: Section;
@@ -17,6 +18,7 @@ const NAV_ITEMS: {
   { key: "model", icon: "🤖", labelKey: "settings.model", fallback: "Model" },
   { key: "theme", icon: "🎨", labelKey: "settings.theme", fallback: "Appearance" },
   { key: "voice", icon: "🎤", labelKey: "settings.voice", fallback: "Voice" },
+  { key: "plugins", icon: "🧩", labelKey: "settings.plugins", fallback: "Plugins" },
 ];
 
 interface Props {
@@ -71,6 +73,7 @@ export function SettingsPanel({ onClose }: Props) {
           {section === "model" && <ModelConfig />}
           {section === "theme" && <ThemeConfig />}
           {section === "voice" && <VoiceConfig />}
+          {section === "plugins" && <PluginConfig />}
         </div>
       </div>
     </div>

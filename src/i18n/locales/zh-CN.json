@@ -21,6 +21,8 @@
     "model": "AI模型",
     "theme": "外观",
     "voice": "语音",
+    "plugins": "插件管理",
+    "search_plugins": "搜索插件...",
     "tab_live2d": "Live2D",
     "tab_chat": "聊天窗口",
     "model_window_ratio": "模型占窗口比例",

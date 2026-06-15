@@ -21,6 +21,8 @@
     "model": "AI Model",
     "theme": "Appearance",
     "voice": "Voice",
+    "plugins": "Plugins",
+    "search_plugins": "Search plugins...",
     "tab_live2d": "Live2D",
     "tab_chat": "Chat",
     "model_window_ratio": "Model Window Ratio",

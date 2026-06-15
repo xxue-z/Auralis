@@ -1,6 +1,6 @@
 use crate::os_adapter::capability::CapabilityRequest;
 use crate::os_adapter::router::OSAdapterRouter;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::path::Path;
 use tauri::{AppHandle, Emitter, Manager};
 use zip::ZipArchive;
@@ -295,6 +295,244 @@ pub async fn migrate_extensions(
     }
 
     Ok(())
+}
+
+/// 插件元信息
+#[derive(Serialize, Deserialize, Clone)]
+pub struct PluginInfo {
+    pub id: String,
+    pub name: String,
+    pub version: String,
+    pub description: String,
+    pub author: String,
+    pub source: String, // "system" 或 "user"
+    pub added_at: String,
+    pub enabled: bool,
+}
+
+/// 解析插件目录下的 plugin.json
+fn read_plugin_json(plugin_dir: &Path, source: &str) -> Option<PluginInfo> {
+    let json_path = plugin_dir.join("plugin.json");
+    if !json_path.exists() {
+        return None;
+    }
+    let content = std::fs::read_to_string(json_path).ok()?;
+    let meta: serde_json::Value = serde_json::from_str(&content).ok()?;
+    let name = meta.get("name")?.as_str()?;
+    let folder_name = plugin_dir.file_name()?.to_string_lossy().to_string();
+    Some(PluginInfo {
+        id: folder_name.clone(),
+        name: name.to_string(),
+        version: meta.get("version").and_then(|v| v.as_str()).unwrap_or("0.0.0").to_string(),
+        description: meta.get("description").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+        author: meta.get("author").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+        source: source.to_string(),
+        added_at: "".to_string(),
+        enabled: true,
+    })
+}
+
+/// 列出系统插件目录下的所有插件
+#[tauri::command]
+pub async fn list_system_plugins() -> Result<Vec<PluginInfo>, String> {
+    let exe_dir = std::env::current_exe()
+        .map_err(|e| format!("获取可执行文件路径失败: {}", e))?
+        .parent()
+        .ok_or("无法获取可执行文件目录")?
+        .to_path_buf();
+
+    // Try multiple possible paths for the plugins directory
+    // Dev mode: exe can be at target/debug/ or src-tauri/target/debug/
+    let candidates = [
+        exe_dir.join("../../plugins"),          // Project root /plugins
+        exe_dir.join("../../../plugins"),       // src-tauri/target/debug -> project root /plugins
+        exe_dir.join("../plugins"),             // One level up
+        exe_dir.join("plugins"),                // Same dir
+    ];
+
+    let plugins_dir = candidates.iter().find(|p| p.exists());
+
+    let plugins_dir = match plugins_dir {
+        Some(p) => std::fs::canonicalize(p)
+            .map_err(|e| format!("解析插件目录失败: {}", e))?,
+        None => return Ok(vec![]),
+    };
+
+    log::info!("系统插件目录: {}", plugins_dir.display());
+
+    let mut plugins = Vec::new();
+    let dir = std::fs::read_dir(&plugins_dir)
+        .map_err(|e| format!("读取插件目录失败: {}", e))?;
+
+    for entry in dir {
+        let entry = entry.map_err(|e| format!("遍历插件目录失败: {}", e))?;
+        if !entry.path().is_dir() { continue; }
+        if let Some(info) = read_plugin_json(&entry.path(), "system") {
+            plugins.push(info);
+        }
+    }
+
+    Ok(plugins)
+}
+
+/// 列出用户导入的插件（扩展目录下）
+#[tauri::command]
+pub async fn list_user_plugins(extensions_path: String) -> Result<Vec<PluginInfo>, String> {
+    let plugins_dir = Path::new(&extensions_path).join("plugins");
+    if !plugins_dir.exists() {
+        let _ = std::fs::create_dir_all(&plugins_dir);
+        return Ok(vec![]);
+    }
+    let mut plugins = Vec::new();
+    let dir = std::fs::read_dir(&plugins_dir)
+        .map_err(|e| format!("读取用户插件目录失败: {}", e))?;
+    for entry in dir {
+        let entry = entry.map_err(|e| format!("遍历用户插件目录失败: {}", e))?;
+        if !entry.path().is_dir() { continue; }
+        if let Some(info) = read_plugin_json(&entry.path(), "user") {
+            plugins.push(info);
+        }
+    }
+    Ok(plugins)
+}
+
+/// 导入插件（复制目录到扩展目录下的 plugins/ 子目录）
+#[tauri::command]
+pub async fn import_plugin(source_path: String, extensions_path: String) -> Result<PluginInfo, String> {
+    let src = Path::new(&source_path);
+    if !src.exists() || !src.is_dir() {
+        return Err("源目录不存在或不是一个目录".to_string());
+    }
+
+    let folder_name = src.file_name()
+        .ok_or("无法获取目录名")?
+        .to_string_lossy()
+        .to_string();
+
+    let plugins_dir = Path::new(&extensions_path).join("plugins");
+    std::fs::create_dir_all(&plugins_dir)
+        .map_err(|e| format!("创建插件目录失败: {}", e))?;
+    let dest_base = plugins_dir.join(&folder_name);
+    if dest_base.exists() {
+        return Err(format!("插件 '{}' 已存在", folder_name));
+    }
+
+    // 验证源目录包含 plugin.json
+    let meta = read_plugin_json(src, "user")
+        .ok_or("源目录不包含有效的 plugin.json".to_string())?;
+
+    // 递归复制目录
+    fn copy_dir_all(src: &Path, dst: &Path) -> Result<(), String> {
+        std::fs::create_dir_all(dst)
+            .map_err(|e| format!("创建目录失败: {}", e))?;
+        let entries = std::fs::read_dir(src)
+            .map_err(|e| format!("读取目录失败: {}", e))?;
+        for entry in entries {
+            let entry = entry.map_err(|e| format!("遍历目录失败: {}", e))?;
+            let file_type = entry.file_type().map_err(|e| format!("获取文件类型失败: {}", e))?;
+            let dest = dst.join(entry.file_name());
+            if file_type.is_dir() {
+                copy_dir_all(&entry.path(), &dest)?;
+            } else {
+                std::fs::copy(&entry.path(), &dest)
+                    .map_err(|e| format!("复制文件失败: {}", e))?;
+            }
+        }
+        Ok(())
+    }
+
+    copy_dir_all(src, &dest_base)?;
+
+    Ok(meta)
+}
+
+/// 从 ZIP 文件导入插件（解压到扩展目录下的 plugins/ 子目录）
+#[tauri::command]
+pub async fn import_plugin_zip(zip_path: String, extensions_path: String) -> Result<PluginInfo, String> {
+    let zip_data = std::fs::read(&zip_path)
+        .map_err(|e| format!("读取 ZIP 文件失败: {}", e))?;
+
+    let mut archive = zip::ZipArchive::new(std::io::Cursor::new(zip_data))
+        .map_err(|e| format!("ZIP 解析失败: {}", e))?;
+
+    // 查找 plugin.json 在 ZIP 中的位置，确定插件根目录
+    let mut plugin_json_entry: Option<(String, usize)> = None;
+    for i in 0..archive.len() {
+        let entry = archive.by_index(i).map_err(|e| format!("读取 ZIP 条目失败: {}", e))?;
+        let name = entry.name().to_string();
+        if name.ends_with("plugin.json") {
+            plugin_json_entry = Some((name, i));
+            break;
+        }
+    }
+
+    let (plugin_rel_path, idx) = plugin_json_entry
+        .ok_or("ZIP 中未找到 plugin.json".to_string())?;
+
+    // 确定插件目录名：取 plugin.json 所在目录的顶层目录名
+    let plugin_root = Path::new(&plugin_rel_path).parent()
+        .and_then(|p| p.iter().next())
+        .and_then(|s| s.to_str())
+        .unwrap_or("imported_plugin")
+        .to_string();
+
+    if plugin_root.is_empty() {
+        return Err("无法确定插件目录名".to_string());
+    }
+
+    let plugins_dir = Path::new(&extensions_path).join("plugins");
+    std::fs::create_dir_all(&plugins_dir)
+        .map_err(|e| format!("创建插件目录失败: {}", e))?;
+    let dest_base = plugins_dir.join(&plugin_root);
+    if dest_base.exists() {
+        return Err(format!("插件 '{}' 已存在", plugin_root));
+    }
+
+    // 读取 plugin.json 验证
+    let mut plugin_json_content = String::new();
+    {
+        let mut entry = archive.by_index(idx).map_err(|e| format!("读取 plugin.json 失败: {}", e))?;
+        std::io::Read::read_to_string(&mut entry, &mut plugin_json_content)
+            .map_err(|e| format!("读取 plugin.json 内容失败: {}", e))?;
+    }
+    let _meta: serde_json::Value = serde_json::from_str(&plugin_json_content)
+        .map_err(|e| format!("plugin.json 格式无效: {}", e))?;
+
+    // 解压所有文件
+    for i in 0..archive.len() {
+        let mut entry = archive.by_index(i).map_err(|e| format!("读取 ZIP 条目失败: {}", e))?;
+        let name = entry.name().to_string();
+        let dest_path = dest_base.join(&name);
+
+        if entry.is_dir() {
+            std::fs::create_dir_all(&dest_path)
+                .map_err(|e| format!("创建目录失败 ({}): {}", dest_path.display(), e))?;
+        } else {
+            if let Some(parent) = dest_path.parent() {
+                std::fs::create_dir_all(parent)
+                    .map_err(|e| format!("创建目录失败: {}", e))?;
+            }
+            let mut buf = Vec::new();
+            std::io::Read::read_to_end(&mut entry, &mut buf)
+                .map_err(|e| format!("读取文件失败: {}", e))?;
+            std::fs::write(&dest_path, &buf)
+                .map_err(|e| format!("写入文件失败 ({}): {}", dest_path.display(), e))?;
+        }
+    }
+
+    read_plugin_json(&dest_base, "user")
+        .ok_or("解压完成后读取插件信息失败".to_string())
+}
+
+/// 删除用户导入的插件
+#[tauri::command]
+pub async fn delete_user_plugin(plugin_id: String, extensions_path: String) -> Result<(), String> {
+    let plugin_dir = Path::new(&extensions_path).join("plugins").join(&plugin_id);
+    if !plugin_dir.exists() {
+        return Ok(());
+    }
+    std::fs::remove_dir_all(&plugin_dir)
+        .map_err(|e| format!("删除插件目录失败: {}", e))
 }
 
 /// 执行 OS 操作能力
