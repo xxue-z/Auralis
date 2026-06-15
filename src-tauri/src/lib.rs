@@ -166,6 +166,7 @@ pub fn run() {
             commands::extract_model_zip,
             commands::extract_model_zip_from_path,
             commands::open_in_explorer,
+            commands::delete_model_dir,
             commands::get_app_data_dir,
             commands::migrate_extensions,
         ])

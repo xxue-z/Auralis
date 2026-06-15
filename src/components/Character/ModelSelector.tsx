@@ -5,8 +5,9 @@
 
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { confirm } from "@tauri-apps/plugin-dialog";
 import { useSettingsStore } from "../../stores/settingsStore";
-import { loadRegistry, getModels, addModel } from "./live2dService";
+import { loadRegistry, getModels, addModel, removeModel } from "./live2dService";
 import { ModelImporter } from "./ModelImporter";
 import type { Live2DModelConfig } from "../../types/live2d";
 
@@ -40,6 +41,19 @@ export function ModelSelector() {
     setSetting("appearance.model_id", modelId);
     setSaved(true);
     setTimeout(() => setSaved(false), 1500);
+  };
+
+  const handleDelete = async (model: Live2DModelConfig) => {
+    const ok = await confirm(`确认删除模型「${model.name}」？模型文件将被永久删除。`, { title: "删除模型", kind: "warning" });
+    if (!ok) return;
+    removeModel(model.id);
+    if (model.modelDir) {
+      invoke("delete_model_dir", { path: model.modelDir }).catch(() => {});
+    }
+    if (currentModelId === model.id) {
+      setSetting("appearance.model_id", "svg_fallback");
+    }
+    setModels([...getModels()]);
   };
 
   return (
@@ -92,12 +106,20 @@ export function ModelSelector() {
               <span className="text-[10px] text-gray-400 truncate max-w-[200px]" title={model.modelDir}>
                 {model.modelDir}
               </span>
-              <button
-                onClick={() => invoke("open_in_explorer", { path: model.modelDir })}
-                className="text-blue-500 hover:text-blue-700 text-[10px] shrink-0 ml-1"
-              >
-                打开
-              </button>
+              <div className="flex gap-1 shrink-0 ml-1">
+                <button
+                  onClick={() => invoke("open_in_explorer", { path: model.modelDir })}
+                  className="text-blue-500 hover:text-blue-700 text-[10px]"
+                >
+                  打开
+                </button>
+                <button
+                  onClick={() => handleDelete(model)}
+                  className="text-red-400 hover:text-red-600 text-[10px]"
+                >
+                  删除
+                </button>
+              </div>
             </div>
           )}
         </div>

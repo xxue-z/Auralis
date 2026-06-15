@@ -18,6 +18,7 @@ pub struct ExtractModelResult {
     pub model_name: String,
     pub model_dir: String,
     pub model_json_path: String,
+    pub cubism_version: u32,
 }
 
 /// 提取 Live2D 模型压缩包到数据目录，递归查找 .model3.json / .model.json
@@ -66,7 +67,8 @@ fn do_extract(app: &AppHandle, zip_data: &[u8], extensions_path: Option<&str>) -
         let lower = name.to_lowercase();
         let fname = Path::new(&lower).file_name()
             .and_then(|s| s.to_str()).unwrap_or("");
-        if lower.ends_with(".model3.json") || fname == "model.json" || fname.ends_with(".model.json") {
+        let is_cubism4 = lower.ends_with(".model3.json");
+        if is_cubism4 || fname == "model.json" || fname.ends_with(".model.json") {
             log::info!("找到模型文件: {}", name);
             model_json_path = Some(name.clone());
         }
@@ -81,6 +83,8 @@ fn do_extract(app: &AppHandle, zip_data: &[u8], extensions_path: Option<&str>) -
 
     let model_json = model_json_path
         .ok_or("ZIP 中未找到 Live2D 模型文件（.model3.json 或 .model.json）")?;
+
+    let cubism_version: u32 = if model_json.to_lowercase().ends_with(".model3.json") { 4 } else { 2 };
 
     // 模型 JSON 所在目录作为模型根目录
     let model_dir = Path::new(&model_json).parent().unwrap_or(Path::new(""));
@@ -118,6 +122,7 @@ fn do_extract(app: &AppHandle, zip_data: &[u8], extensions_path: Option<&str>) -
         model_name: dir_name,
         model_dir: model_dir_str,
         model_json_path: model_json_rel,
+        cubism_version,
     })
 }
 
@@ -148,6 +153,17 @@ pub async fn extract_model_zip_from_path(
 pub async fn open_in_explorer(path: String) -> Result<(), String> {
     open::that(&path)
         .map_err(|e| format!("打开路径失败: {}", e))
+}
+
+/// 递归删除已导入模型的目录
+#[tauri::command]
+pub async fn delete_model_dir(path: String) -> Result<(), String> {
+    let dir = std::path::Path::new(&path);
+    if !dir.exists() {
+        return Ok(());
+    }
+    std::fs::remove_dir_all(dir)
+        .map_err(|e| format!("删除模型目录失败 ({}): {}", path, e))
 }
 
 #[tauri::command]

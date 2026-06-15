@@ -22,6 +22,8 @@ export interface Live2DModelConfig {
   mappings: Record<PersonaState, string>;
   /** 模型文件系统目录（仅 imported 模型） */
   modelDir?: string;
+  /** Cubism 版本：2 或 4（仅 imported 模型，默认 4） */
+  cubismVersion?: number;
 }
 
 /** 模型注册表 */

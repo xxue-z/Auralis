@@ -5,69 +5,82 @@
 import { convertFileSrc } from "@tauri-apps/api/core";
 import type { Live2DModelConfig, ModelRegistry } from "../../types/live2d";
 
-// Cubism 4 框架是否已注册
-let _frameworkRegistered = false;
-let _coreLoadPromise: Promise<void> | null = null;
+// Cubism 框架注册状态（按版本）
+let _frameworkState = { 2: false, 4: false };
+let _coreLoadPromise: { [key: number]: Promise<void> | null } = { 2: null, 4: null };
 
 /**
- * 加载 Cubism Core SDK 运行时（live2dcubismcore.min.js）
- * pixi-live2d-display 必需此文件才能加载 .moc3 模型
+ * 加载 Cubism Core SDK 运行时
+ * v4: live2dcubismcore.min.js → window.Live2DCubismCore
+ * v2: live2d.min.js → window.Live2D
  *
- * 关键：必须在 import("pixi-live2d-display/cubism4") 之前加载完成，
- * 因为 cubism4 模块在加载时就检查 window.Live2DCubismCore
+ * 必须在 import cubism4/cubism2 之前加载完成，
+ * 因为模块在加载时就检查对应的全局变量
  */
-function loadCubismCore(): Promise<void> {
-  if (_coreLoadPromise) return _coreLoadPromise;
+function loadCubismCore(version: 2 | 4): Promise<void> {
+  if (_coreLoadPromise[version]) return _coreLoadPromise[version]!;
 
-  _coreLoadPromise = new Promise((resolve, reject) => {
-    // 已加载则跳过
-    if ((window as any).Live2DCubismCore) {
-      console.log("[Live2D] Cubism Core SDK 已存在");
+  const isV4 = version === 4;
+  const globalKey = isV4 ? "Live2DCubismCore" : "Live2D";
+  const src = isV4 ? "/live2dcubismcore.min.js" : "/live2d.min.js";
+
+  _coreLoadPromise[version] = new Promise((resolve, reject) => {
+    if ((window as any)[globalKey]) {
+      console.log(`[Live2D] Cubism ${version} Core SDK 已存在`);
       resolve();
       return;
     }
 
     const script = document.createElement("script");
-    script.src = "/live2dcubismcore.min.js";
-    // 不使用 async！必须同步加载完成才能 import cubism4
+    script.src = src;
     script.onload = () => {
-      console.log("[Live2D] Cubism Core SDK 加载成功");
+      console.log(`[Live2D] Cubism ${version} Core SDK 加载成功`);
       resolve();
     };
     script.onerror = () => {
-      console.error("[Live2D] Cubism Core SDK 加载失败: /live2dcubismcore.min.js");
-      _coreLoadPromise = null; // 允许重试
-      reject(new Error("Cubism Core SDK 加载失败"));
+      console.error(`[Live2D] Cubism ${version} Core SDK 加载失败: ${src}`);
+      _coreLoadPromise[version] = null;
+      reject(new Error(`Cubism ${version} Core SDK 加载失败`));
     };
     document.head.appendChild(script);
   });
 
-  return _coreLoadPromise;
+  return _coreLoadPromise[version]!;
 }
 
 /**
- * 注册 Cubism 4 框架（只需调用一次）
+ * 注册指定版本的 Cubism 框架
+ * 返回该版本的 Live2DModel 类
  */
-async function ensureFramework() {
-  if (_frameworkRegistered) return;
+async function ensureFramework(version: 2 | 4): Promise<any> {
+  if (!_frameworkState[version]) {
+    await loadCubismCore(version);
+    const globalKey = version === 4 ? "Live2DCubismCore" : "Live2D";
+    if (!(window as any)[globalKey]) {
+      throw new Error(`Cubism ${version} Core 加载后仍未找到 window.${globalKey}`);
+    }
 
-  // 关键：先加载 Cubism Core，等待完成后再 import cubism4
-  await loadCubismCore();
+    const PIXI = await import("pixi.js");
+    const ticker = PIXI.Ticker.shared || new PIXI.Ticker();
 
-  // 确认 Live2DCubismCore 已就位
-  if (!(window as any).Live2DCubismCore) {
-    throw new Error("Cubism Core 加载后仍未找到 window.Live2DCubismCore");
+    if (version === 4) {
+      const { Live2DModel } = await import("pixi-live2d-display/cubism4");
+      (Live2DModel as any).registerTicker({ shared: ticker });
+    } else {
+      const { Live2DModel } = await import("pixi-live2d-display/cubism2");
+      (Live2DModel as any).registerTicker({ shared: ticker });
+    }
+    _frameworkState[version] = true;
+    console.log(`[Live2D] Cubism ${version} 框架已注册`);
   }
 
-  const { Live2DModel } = await import("pixi-live2d-display/cubism4");
-  // registerTicker 需要一个有 .shared 属性的对象
-  // PixiJS v6 Ticker.shared 就是全局 ticker 实例
-  const PIXI = await import("pixi.js");
-  const ticker = PIXI.Ticker.shared || new PIXI.Ticker();
-  // 包装成 cubism4 期望的格式 { shared: tickerInstance }
-  (Live2DModel as any).registerTicker({ shared: ticker });
-  _frameworkRegistered = true;
-  console.log("[Live2D] Cubism 4 框架已注册");
+  if (version === 4) {
+    const { Live2DModel } = await import("pixi-live2d-display/cubism4");
+    return Live2DModel;
+  } else {
+    const { Live2DModel } = await import("pixi-live2d-display/cubism2");
+    return Live2DModel;
+  }
 }
 
 // 内置模型注册表（从 public/models/registry.json 加载）
@@ -117,6 +130,99 @@ export function addModel(config: Live2DModelConfig): void {
 }
 
 /**
+ * 从注册表移除已导入的模型
+ */
+export function removeModel(id: string): void {
+  const idx = _registry.models.findIndex((m) => m.id === id && m.type === "imported");
+  if (idx >= 0) {
+    _registry.models.splice(idx, 1);
+  }
+  releaseModel(id);
+  try {
+    localStorage.removeItem(`imported_model:${id}`);
+  } catch {}
+}
+
+/**
+ * 获取模型对应的 Cubism 版本
+ */
+function getCubismVersion(config: Live2DModelConfig): 2 | 4 {
+  if (config.cubismVersion === 2) return 2;
+  return 4;
+}
+
+/**
+ * 解析原始文件路径：逐层剥离可能累积的 asset 协议前缀
+ */
+function resolveRawPath(p: string): string {
+  const assetRe = /^https?:\/\/asset\.localhost\//;
+  let cur = p;
+  while (assetRe.test(cur)) {
+    cur = decodeURIComponent(cur.replace(assetRe, ''));
+  }
+  return cur;
+}
+
+/**
+ * 将 model.json 中所有相对路径改写为绝对 asset 协议 URL
+ * 解决 Windows 路径编码导致 pixi-live2d-display 路径解析错误的问题
+ */
+async function fetchModelWithAbsoluteUrls(rawJsonPath: string): Promise<any> {
+  const jsonUrl = convertFileSrc(rawJsonPath);
+  const resp = await fetch(jsonUrl);
+  const data = await resp.json();
+
+  // 提取目录部分，统一为反斜杠（Windows convertFileSrc 需要）
+  const sepIdx = Math.max(rawJsonPath.lastIndexOf('/'), rawJsonPath.lastIndexOf('\\'));
+  const rawDir = sepIdx >= 0 ? rawJsonPath.substring(0, sepIdx) : '';
+
+  function toAbs(relative: string): string {
+    if (!relative) return relative;
+    // convertFileSrc 在 Windows 上需要反斜杠路径
+    const absPath = `${rawDir}\\${relative}`.replace(/\//g, '\\');
+    return convertFileSrc(absPath);
+  }
+
+  // pixi-live2d-display 的 ModelSettings 需要 url 字段
+  data.url = jsonUrl;
+
+  // Cubism 2 格式
+  if (data.model || !data.FileReferences) {
+    if (data.model) data.model = toAbs(data.model);
+    if (data.textures) data.textures = data.textures.map(toAbs);
+    if (data.physics) data.physics = toAbs(data.physics);
+    if (data.pose) data.pose = toAbs(data.pose);
+    if (data.motions) {
+      for (const group of Object.keys(data.motions)) {
+        data.motions[group] = data.motions[group].map((m: any) => ({ ...m, file: toAbs(m.file) }));
+      }
+    }
+    if (data.expressions) {
+      data.expressions = data.expressions.map((e: any) => ({ ...e, file: toAbs(e.file) }));
+    }
+    return data;
+  }
+
+  // Cubism 3/4 格式
+  const fr = data.FileReferences;
+  if (fr) {
+    if (fr.Moc) fr.Moc = toAbs(fr.Moc);
+    if (fr.Textures) fr.Textures = fr.Textures.map(toAbs);
+    if (fr.Physics) fr.Physics = toAbs(fr.Physics);
+    if (fr.Pose) fr.Pose = toAbs(fr.Pose);
+    if (fr.Motions) {
+      for (const group of Object.keys(fr.Motions)) {
+        fr.Motions[group] = fr.Motions[group].map((m: any) => ({ ...m, File: toAbs(m.File) }));
+      }
+    }
+    if (fr.Expressions) {
+      fr.Expressions = fr.Expressions.map((e: any) => ({ ...e, File: toAbs(e.File) }));
+    }
+  }
+  return data;
+}
+
+/**
  * 加载 Live2D 模型（带缓存）
  */
 export async function loadModel(config: Live2DModelConfig): Promise<any> {
@@ -124,36 +230,31 @@ export async function loadModel(config: Live2DModelConfig): Promise<any> {
     return _modelCache.get(config.id);
   }
 
-  // 确保 Cubism 4 框架已注册
-  await ensureFramework();
+  const version = getCubismVersion(config);
+  const Live2DModel = await ensureFramework(version);
 
-  const { Live2DModel } = await import("pixi-live2d-display/cubism4");
+  const rawPath = resolveRawPath(config.path);
 
-  // 解析原始文件路径：逐层剥离可能累积的 asset 协议前缀
-  // （兼容跨窗口同步或旧版本存储时 path 已被 convertFileSrc 转换的情况）
-  function resolveRawPath(p: string): string {
-    const assetRe = /^https?:\/\/asset\.localhost\//;
-    let cur = p;
-    while (assetRe.test(cur)) {
-      cur = decodeURIComponent(cur.replace(assetRe, ''));
-    }
-    return cur;
-  }
-
-  const modelPath = config.type === "imported"
-    ? convertFileSrc(resolveRawPath(config.path))
-    : config.path;
-  console.log(`[Live2D] 加载模型: ${modelPath}`, { id: config.id, type: config.type, rawPath: config.path });
   try {
-    const model = await Live2DModel.from(modelPath);
+    let model: any;
+
+    if (config.type === "imported") {
+      // import 模型：手动加载 JSON 并改写为绝对路径
+      const modelData = await fetchModelWithAbsoluteUrls(rawPath);
+      model = await Live2DModel.from(modelData);
+    } else {
+      // bundled 模型：直接使用内置 URL
+      model = await Live2DModel.from(config.path);
+    }
+
     console.log(`[Live2D] 模型加载成功: ${config.id}`);
     _modelCache.set(config.id, model);
     return model;
   } catch (e) {
     console.error(`[Live2D] 模型加载失败: ${config.id}`, {
       error: e,
-      modelPath,
       type: config.type,
+      version,
       rawPath: config.path,
     });
     throw e;

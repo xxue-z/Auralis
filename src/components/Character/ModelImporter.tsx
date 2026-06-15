@@ -11,6 +11,7 @@ interface ExtractModelResult {
   model_name: string;
   model_dir: string;
   model_json_path: string;
+  cubism_version: number;
 }
 
 interface ExtractProgress {
@@ -71,6 +72,7 @@ export function ModelImporter({ onImported }: ModelImporterProps) {
         path: rawPath,
         type: "imported",
         modelDir: result.model_dir,
+        cubismVersion: result.cubism_version,
         mappings: {
           idle: "idle",
           speaking: "tap",
