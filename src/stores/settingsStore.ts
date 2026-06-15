@@ -52,6 +52,8 @@ const DEFAULT_SETTINGS: Record<string, any> = {
   "appearance.mode": "interactive",
   // 引导
   "onboarding.complete": false,
+  // 通用
+  "general.extensions_path": "",
   // 语音
   "voice.enabled": false,
   "voice.preset_id": "sweet_female",

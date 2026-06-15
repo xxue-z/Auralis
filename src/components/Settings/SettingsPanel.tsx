@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { LanguageSelector } from "./LanguageSelector";
+import { GeneralSettings } from "./GeneralSettings";
 import { ModelConfig } from "./ModelConfig";
 import { ThemeConfig } from "./ThemeConfig";
 import { VoiceConfig } from "./VoiceConfig";
@@ -13,7 +13,7 @@ const NAV_ITEMS: {
   labelKey: string;
   fallback: string;
 }[] = [
-  { key: "general", icon: "🌐", labelKey: "settings.language.label", fallback: "Language" },
+  { key: "general", icon: "⚙️", labelKey: "settings.general", fallback: "General" },
   { key: "model", icon: "🤖", labelKey: "settings.model", fallback: "Model" },
   { key: "theme", icon: "🎨", labelKey: "settings.theme", fallback: "Appearance" },
   { key: "voice", icon: "🎤", labelKey: "settings.voice", fallback: "Voice" },
@@ -67,7 +67,7 @@ export function SettingsPanel({ onClose }: Props) {
         </nav>
 
         <div className="flex-1 overflow-y-auto p-5">
-          {section === "general" && <LanguageSelector />}
+          {section === "general" && <GeneralSettings />}
           {section === "model" && <ModelConfig />}
           {section === "theme" && <ThemeConfig />}
           {section === "voice" && <VoiceConfig />}

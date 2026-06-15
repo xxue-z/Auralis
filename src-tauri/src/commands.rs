@@ -22,10 +22,13 @@ pub struct ExtractModelResult {
 
 /// 提取 Live2D 模型压缩包到数据目录，递归查找 .model3.json / .model.json
 /// 内部逻辑，供两个命令共用（内存 IPC 和 文件路径）
-fn do_extract(app: &AppHandle, zip_data: &[u8]) -> Result<ExtractModelResult, String> {
-    let models_dir = app.path().app_data_dir()
-        .map_err(|e| format!("获取数据目录失败: {}", e))?
-        .join("models");
+fn do_extract(app: &AppHandle, zip_data: &[u8], extensions_path: Option<&str>) -> Result<ExtractModelResult, String> {
+    let models_dir = match extensions_path {
+        Some(p) if !p.is_empty() => Path::new(p).join("models"),
+        _ => app.path().app_data_dir()
+            .map_err(|e| format!("获取数据目录失败: {}", e))?
+            .join("models"),
+    };
 
     std::fs::create_dir_all(&models_dir)
         .map_err(|e| format!("创建 models 目录失败: {}", e))?;
@@ -121,18 +124,20 @@ pub async fn extract_model_zip(
     app: AppHandle,
     zip_data: Vec<u8>,
 ) -> Result<ExtractModelResult, String> {
-    do_extract(&app, &zip_data)
+    do_extract(&app, &zip_data, None)
 }
 
 /// 从文件路径提取（避免 JS 读取大文件阻塞 UI）
+/// extensions_path: 可选，扩展文件夹路径，模型将保存在 {extensions_path}/models/ 下
 #[tauri::command]
 pub async fn extract_model_zip_from_path(
     app: AppHandle,
     zip_path: String,
+    extensions_path: Option<String>,
 ) -> Result<ExtractModelResult, String> {
     let zip_data = std::fs::read(&zip_path)
         .map_err(|e| format!("读取 ZIP 文件失败 ({}): {}", zip_path, e))?;
-    do_extract(&app, &zip_data)
+    do_extract(&app, &zip_data, extensions_path.as_deref())
 }
 
 /// 在文件管理器中打开指定路径
@@ -198,6 +203,77 @@ pub async fn resize_window(
     window.set_size(tauri::PhysicalSize::new(width as u32, height as u32))
         .map_err(|e| e.to_string())?;
     window.set_always_on_top(true).ok();
+
+    Ok(())
+}
+
+/// 获取应用数据默认目录路径
+#[tauri::command]
+pub async fn get_app_data_dir(app: AppHandle) -> Result<String, String> {
+    app.path().app_data_dir()
+        .map(|p| p.to_string_lossy().to_string())
+        .map_err(|e| format!("获取数据目录失败: {}", e))
+}
+
+/// 迁移扩展文件夹内容
+/// 将 old_path 下各子目录（models/ 等）全部复制到 new_path 对应子目录，然后清除 old_path 中已迁移的内容
+#[tauri::command]
+pub async fn migrate_extensions(
+    old_path: String,
+    new_path: String,
+) -> Result<(), String> {
+    let old = Path::new(&old_path);
+    let new = Path::new(&new_path);
+
+    if !old.exists() {
+        // 旧路径不存在，无需迁移
+        return Ok(());
+    }
+
+    std::fs::create_dir_all(new)
+        .map_err(|e| format!("创建目标目录失败: {}", e))?;
+
+    let dir = std::fs::read_dir(old)
+        .map_err(|e| format!("读取旧目录失败: {}", e))?;
+
+    for entry in dir {
+        let entry = entry.map_err(|e| format!("遍历目录失败: {}", e))?;
+        let entry_name = entry.file_name();
+        let entry_path = entry.path();
+
+        if !entry_path.is_dir() { continue; }
+
+        let dest = new.join(&entry_name);
+        log::info!("迁移扩展目录: {:?} -> {:?}", entry_path, dest);
+
+        // 创建目标子目录
+        std::fs::create_dir_all(&dest)
+            .map_err(|e| format!("创建目标子目录失败 ({}): {}", dest.display(), e))?;
+
+        // 递归复制文件
+        fn copy_dir(src: &Path, dst: &Path) -> Result<(), String> {
+            if src.is_file() {
+                std::fs::copy(src, dst)
+                    .map_err(|e| format!("复制文件失败 ({} -> {}): {}", src.display(), dst.display(), e))?;
+                return Ok(());
+            }
+            std::fs::create_dir_all(dst)
+                .map_err(|e| format!("创建目录失败 ({}): {}", dst.display(), e))?;
+            let entries = std::fs::read_dir(src)
+                .map_err(|e| format!("读取目录失败 ({}): {}", src.display(), e))?;
+            for e in entries {
+                let e = e.map_err(|e| format!("遍历目录失败: {}", e))?;
+                copy_dir(&e.path(), &dst.join(e.file_name()))?;
+            }
+            Ok(())
+        }
+
+        copy_dir(&entry_path, &dest)?;
+
+        // 清除已迁移的旧目录
+        std::fs::remove_dir_all(&entry_path)
+            .map_err(|e| format!("清除旧目录失败 ({}): {}", entry_path.display(), e))?;
+    }
 
     Ok(())
 }

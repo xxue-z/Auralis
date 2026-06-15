@@ -13,6 +13,7 @@
   },
   "settings": {
     "title": "Settings",
+    "general": "General",
     "language": {
       "label": "Language",
       "description": "Choose your preferred language"

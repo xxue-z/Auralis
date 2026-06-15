@@ -3,6 +3,7 @@ import { invoke, convertFileSrc } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import { addModel } from "./live2dService";
+import { useSettingsStore } from "../../stores/settingsStore";
 import type { Live2DModelConfig } from "../../types/live2d";
 
 interface ExtractModelResult {
@@ -28,6 +29,7 @@ export function ModelImporter({ onImported }: ModelImporterProps) {
   const [lastModel, setLastModel] = useState<ExtractModelResult | null>(null);
   const [progress, setProgress] = useState<ExtractProgress | null>(null);
   const unlistenRef = useRef<UnlistenFn | null>(null);
+  const extensionsPath = useSettingsStore((s) => s.settings["general.extensions_path"]);
 
   useEffect(() => {
     return () => {
@@ -57,7 +59,7 @@ export function ModelImporter({ onImported }: ModelImporterProps) {
       // Rust 端直接读取文件，避免 JS 读取大文件阻塞 UI
       const result = await invoke<ExtractModelResult>(
         "extract_model_zip_from_path",
-        { zipPath: selected },
+        { zipPath: selected, extensionsPath: extensionsPath || null },
       );
 
       const assetUrl = convertFileSrc(

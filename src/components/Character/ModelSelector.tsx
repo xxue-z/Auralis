@@ -96,7 +96,7 @@ export function ModelSelector() {
 
       {/* 导入按钮 */}
       <ModelImporter onImported={() => {
-        setModels(getModels());
+        setModels([...getModels()]);
       }} />
 
       {/* 保存提示 */}

@@ -13,6 +13,7 @@
   },
   "settings": {
     "title": "设置",
+    "general": "通用",
     "language": {
       "label": "语言",
       "description": "选择你偏好的语言"
