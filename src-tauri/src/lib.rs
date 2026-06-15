@@ -124,6 +124,18 @@ pub fn run() {
             // 设置托盘
             tray::setup(app.handle())?;
 
+            // 允许 asset:// 协议访问 models 目录（用于加载本地 Live2D 模型文件）
+            {
+                let scope = app.handle().asset_protocol_scope();
+                let models_dir = app.path().app_data_dir()
+                    .unwrap_or_default()
+                    .join("models");
+                if models_dir.exists() || std::fs::create_dir_all(&models_dir).is_ok() {
+                    let _ = scope.allow_directory(&models_dir, true);
+                    log::info!("允许 asset 协议访问: {}", models_dir.display());
+                }
+            }
+
             // 启动 Agent 进程
             match AGENT_MANAGER.start_agent() {
                 Ok(pid) => {
@@ -150,6 +162,8 @@ pub fn run() {
             commands::greet,
             commands::execute_capability,
             commands::resize_window,
+            commands::extract_model_zip,
+            commands::open_in_explorer,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

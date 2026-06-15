@@ -20,6 +20,8 @@ export interface Live2DModelConfig {
   type: "bundled" | "imported";
   /** 状态 → motion group 映射 */
   mappings: Record<PersonaState, string>;
+  /** 模型文件系统目录（仅 imported 模型） */
+  modelDir?: string;
 }
 
 /** 模型注册表 */

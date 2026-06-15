@@ -1,18 +1,19 @@
+use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{
     menu::{CheckMenuItem, Menu, MenuItem, Submenu},
     tray::TrayIconBuilder,
-    AppHandle, Manager,
+    AppHandle, Emitter, Manager,
 };
 
 use crate::AGENT_MANAGER;
 
 /// 根据系统语言获取菜单文本
-fn get_menu_texts() -> (&'static str, &'static str, &'static str, &'static str, &'static str, &'static str) {
+fn get_menu_texts() -> (&'static str, &'static str, &'static str, &'static str, &'static str, &'static str, &'static str, &'static str) {
     let locale = sys_locale::get_locale().unwrap_or_default();
     if locale.starts_with("zh") {
-        ("模式切换", "交互模式", "专注模式", "隐藏模式", "设置", "退出")
+        ("模式切换", "交互模式", "专注模式", "隐藏模式", "置顶", "取消置顶", "设置", "退出")
     } else {
-        ("Mode", "Interactive", "Focus", "Hidden", "Settings", "Quit")
+        ("Mode", "Interactive", "Focus", "Hidden", "Pin", "Unpin", "Settings", "Quit")
     }
 }
 
@@ -31,12 +32,16 @@ fn set_mode_via_eval(window: &tauri::WebviewWindow, mode: &str) {
 
 /// 初始化系统托盘
 pub fn setup(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
-    let (mode_text, interactive_text, focus_text, hidden_text, settings_text, quit_text) = get_menu_texts();
+    let (mode_text, interactive_text, focus_text, hidden_text, pin_text, unpin_text, settings_text, quit_text) = get_menu_texts();
 
     // 创建模式子菜单项
     let interactive_item = CheckMenuItem::with_id(app, "mode_interactive", interactive_text, true, true, None::<&str>)?;
     let focus_item = CheckMenuItem::with_id(app, "mode_focus", focus_text, true, false, None::<&str>)?;
     let hidden_item = CheckMenuItem::with_id(app, "mode_hidden", hidden_text, true, false, None::<&str>)?;
+
+    // 置顶切换按钮（小精灵默认置顶，初始显示"取消置顶"）
+    let pin_item = MenuItem::with_id(app, "toggle_pin", unpin_text, true, None::<&str>)?;
+    let is_pinned = AtomicBool::new(true);
 
     // 通用设置与退出
     let settings_item = MenuItem::with_id(app, "settings", settings_text, true, None::<&str>)?;
@@ -50,7 +55,7 @@ pub fn setup(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     ])?;
 
     // 构建主菜单
-    let menu = Menu::with_items(app, &[&mode_submenu, &settings_item, &quit_item])?;
+    let menu = Menu::with_items(app, &[&mode_submenu, &pin_item, &settings_item, &quit_item])?;
 
     // 加载托盘图标（缺失时不 panic，托盘仍可工作）
     let icon = app.default_window_icon().cloned().unwrap_or_else(|| {
@@ -93,13 +98,23 @@ pub fn setup(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
                         let _ = window.hide();
                     }
                 }
+                "toggle_pin" => {
+                    let current = is_pinned.load(Ordering::SeqCst);
+                    let new_pinned = !current;
+                    is_pinned.store(new_pinned, Ordering::SeqCst);
+                    // 菜单文字表示"点击后的动作"：已置顶 → 显示"取消置顶"，反之亦然
+                    let text = if new_pinned { unpin_text } else { pin_text };
+                    let _ = pin_item.set_text(text);
+                    if let Some(window) = app.get_webview_window("pet") {
+                        let _ = window.set_always_on_top(new_pinned);
+                    }
+                }
                 "settings" => {
                     if let Some(window) = app.get_webview_window("pet") {
                         let _ = window.show();
                         let _ = window.set_focus();
-                        let _ =
-                            window.eval("window.dispatchEvent(new CustomEvent('open-settings'))");
                     }
+                    let _ = app.emit("open-settings", ());
                 }
                 "quit" => {
                     log::info!("托盘退出：正在停止 Agent 进程...");

@@ -30,7 +30,7 @@ const CHAT_WIN_OPTIONS = {
   height: 480,
   decorations: false,
   transparent: true,
-  alwaysOnTop: true,
+  alwaysOnTop: false,
   resizable: false,
   skipTaskbar: true,
   shadow: false,
@@ -334,9 +334,12 @@ export function PetApp() {
   }, [openSettings]);
 
   useEffect(() => {
-    const handler = () => openSettings();
-    window.addEventListener("open-settings", handler);
-    return () => window.removeEventListener("open-settings", handler);
+    const unlisten = listen<{}>("open-settings", () => {
+      openSettings();
+    });
+    return () => {
+      unlisten.then((fn) => fn());
+    };
   }, [openSettings]);
 
   // ── Restore saved position on mount ──────────────────────────

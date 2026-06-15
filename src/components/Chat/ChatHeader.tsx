@@ -1,3 +1,6 @@
+import { useState, useCallback } from "react";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+
 interface Props {
   label: string;
   accentColor: string;
@@ -6,9 +9,22 @@ interface Props {
 }
 
 /**
- * Chat window header — draggable title bar with close button.
+ * Chat window header — draggable title bar with pin and close buttons.
  */
 export function ChatHeader({ label, accentColor, status, onClose }: Props) {
+  const [isPinned, setIsPinned] = useState(false);
+
+  const togglePin = useCallback(async () => {
+    const next = !isPinned;
+    setIsPinned(next);
+    try {
+      const win = getCurrentWebviewWindow();
+      await win.setAlwaysOnTop(next);
+    } catch {
+      // ignore
+    }
+  }, [isPinned]);
+
   const statusDot = {
     connected: "🟢",
     connecting: "🟡",
@@ -40,32 +56,73 @@ export function ChatHeader({ label, accentColor, status, onClose }: Props) {
       >
         {statusDot} {label}
       </span>
-      <button
-        data-tauri-no-drag
-        onClick={onClose}
-        style={{
-          width: 24,
-          height: 24,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          border: "none",
-          background: "transparent",
-          color: "#999",
-          cursor: "pointer",
-          borderRadius: 12,
-          fontSize: 14,
-        }}
-        onMouseEnter={(e) => {
-          (e.target as HTMLElement).style.background = "#f0f0f0";
-        }}
-        onMouseLeave={(e) => {
-          (e.target as HTMLElement).style.background = "transparent";
-        }}
-        title="Close"
-      >
-        ✕
-      </button>
+      <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+        <button
+          data-tauri-no-drag
+          onClick={togglePin}
+          title={isPinned ? "取消置顶" : "置顶"}
+          style={{
+            width: 24,
+            height: 24,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            border: "none",
+            background: "transparent",
+            color: isPinned ? accentColor : "#999",
+            cursor: "pointer",
+            borderRadius: 12,
+            fontSize: 14,
+          }}
+          onMouseEnter={(e) => {
+            (e.target as HTMLElement).style.background = "#f0f0f0";
+          }}
+          onMouseLeave={(e) => {
+            (e.target as HTMLElement).style.background = "transparent";
+          }}
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill={isPinned ? "currentColor" : "none"}
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <circle cx="12" cy="8" r="4" />
+            <path d="M12 12v10" />
+            <path d="M8 22h8" />
+          </svg>
+        </button>
+        <button
+          data-tauri-no-drag
+          onClick={onClose}
+          style={{
+            width: 24,
+            height: 24,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            border: "none",
+            background: "transparent",
+            color: "#999",
+            cursor: "pointer",
+            borderRadius: 12,
+            fontSize: 14,
+          }}
+          onMouseEnter={(e) => {
+            (e.target as HTMLElement).style.background = "#f0f0f0";
+          }}
+          onMouseLeave={(e) => {
+            (e.target as HTMLElement).style.background = "transparent";
+          }}
+          title="Close"
+        >
+          ✕
+        </button>
+      </div>
     </div>
   );
 }

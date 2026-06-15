@@ -4,6 +4,7 @@
  */
 
 import { useState, useEffect } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { loadRegistry, getModels } from "./live2dService";
 import { ModelImporter } from "./ModelImporter";
@@ -50,26 +51,43 @@ export function ModelSelector() {
 
       {/* Live2D 模型列表 */}
       {models.map((model) => (
-        <button
+        <div
           key={model.id}
-          onClick={() => handleSelect(model.id)}
           className={`w-full p-2 rounded-lg text-xs text-left transition-all ${
             currentModelId === model.id
               ? "bg-primary-50 border border-primary-300 text-primary-700"
               : "bg-gray-50 border border-gray-100 text-gray-600 hover:bg-gray-100"
           }`}
         >
-          <div className="flex items-center justify-between">
-            <div className="font-medium">
-              {model.type === "imported" ? "📥 " : "🎭 "}
-              {model.name}
+          <button
+            onClick={() => handleSelect(model.id)}
+            className="w-full text-left"
+          >
+            <div className="flex items-center justify-between">
+              <div className="font-medium">
+                {model.type === "imported" ? "📥 " : "🎭 "}
+                {model.name}
+              </div>
+              {currentModelId === model.id && <span className="text-primary-500">✓</span>}
             </div>
-            {currentModelId === model.id && <span className="text-primary-500">✓</span>}
-          </div>
-          <div className="text-[10px] opacity-60">
-            {model.nameEn} · {model.type === "bundled" ? "内置" : "已导入"}
-          </div>
-        </button>
+            <div className="text-[10px] opacity-60">
+              {model.nameEn} · {model.type === "bundled" ? "内置" : "已导入"}
+            </div>
+          </button>
+          {model.type === "imported" && model.modelDir && (
+            <div className="mt-1 pt-1 border-t border-gray-200 flex items-center justify-between">
+              <span className="text-[10px] text-gray-400 truncate max-w-[200px]" title={model.modelDir}>
+                {model.modelDir}
+              </span>
+              <button
+                onClick={() => invoke("open_in_explorer", { path: model.modelDir })}
+                className="text-blue-500 hover:text-blue-700 text-[10px] shrink-0 ml-1"
+              >
+                打开
+              </button>
+            </div>
+          )}
+        </div>
       ))}
 
       {models.length === 0 && (

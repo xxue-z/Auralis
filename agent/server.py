@@ -128,8 +128,9 @@ async def handle_user_message(ws: WebSocketServerProtocol, data: dict):
 
     # 有明确 capability 的操作也走规则路径（如"打开记事本"、"查看系统信息"）
     if result["intent"] != "unknown" and result["capabilities"]:
+        # 立即发送 capability 请求（不阻塞），同时后台流式输出回复文本
         if result["reply"]:
-            await send_text_response(ws, message_id, result["reply"])
+            asyncio.create_task(send_text_response(ws, message_id, result["reply"]))
         await _execute_capabilities(ws, message_id, result)
         return
 
@@ -241,6 +242,16 @@ async def _execute_capability_batch(ws: WebSocketServerProtocol, message_id: str
         "capabilities": result["capabilities"],
     }))
 
+    # 用后台任务等待结果，不阻塞消息处理循环
+    # 否则 capability_result 会被缓冲但无法处理，导致 handler 死锁超时
+    asyncio.create_task(_wait_capability_result(ws, message_id, request_id, result, future))
+
+
+async def _wait_capability_result(
+    ws: WebSocketServerProtocol, message_id: str,
+    request_id: str, result: dict, future: asyncio.Future,
+):
+    """后台等待 capability 执行结果并发送回复"""
     try:
         import time
         start_time = time.monotonic()
