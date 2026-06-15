@@ -17,11 +17,6 @@ export function ChatApp() {
     (s) => s.settings["appearance.chat_color"] || "#0ea5e9",
   );
 
-  // ── Focus window on mount (already visible from creation) ──────────
-  useEffect(() => {
-    appWindow.setFocus().catch(() => {});
-  }, [appWindow]);
-
   // ── Hide window (keep alive for instant re-show) ──────────────
   const closeChat = useCallback(async () => {
     try {

@@ -63,6 +63,7 @@ class ModelRouter:
             "api_key": settings.get("model.cloud.api_key", ""),
             "model_id": settings.get("model.cloud.model_id", "gpt-4o"),
             "api_protocol": settings.get("model.cloud.api_protocol", "openai"),
+            "timeout": settings.get("model.timeout", 120),
         }
 
         if not config["api_key"]:
@@ -80,6 +81,7 @@ class ModelRouter:
             "api_key": "ollama",  # Ollama 不需要真实 key
             "model_id": settings.get("model.local.model_id", "qwen2.5:1.5b"),
             "api_protocol": "openai",  # Ollama 兼容 OpenAI 协议
+            "timeout": settings.get("model.timeout", 120),
         }
 
         return await self.cloud.chat(messages, config, stream, tools)

@@ -33,6 +33,7 @@ const DEFAULT_SETTINGS: Record<string, any> = {
   "model.local.model_id": "qwen2.5:1.5b",
   // 通用
   "model.auto_switch": true,
+  "model.timeout": 120,
   // 安全
   "security.confirm_destructive": true,
   "security.audit_log": true,

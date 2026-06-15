@@ -27,6 +27,7 @@ class CloudLLM:
                 "api_key": "sk-...",
                 "model_id": "gpt-4o",
                 "api_protocol": "openai" / "anthropic",
+                "timeout": 120,  # 秒，可选
             }
             stream: 是否流式返回
             tools: Function Calling 工具定义列表
@@ -55,6 +56,7 @@ class CloudLLM:
         client = AsyncOpenAI(
             base_url=config["base_url"],
             api_key=config["api_key"],
+            timeout=config.get("timeout", 120),
         )
 
         if stream:
@@ -113,6 +115,7 @@ class CloudLLM:
         client = AsyncAnthropic(
             base_url=config["base_url"],
             api_key=config["api_key"],
+            timeout=config.get("timeout", 120),
         )
 
         # Anthropic 的 system 消息是单独参数

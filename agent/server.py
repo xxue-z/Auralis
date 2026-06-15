@@ -5,6 +5,7 @@ import base64
 import json
 import logging
 import signal
+import time
 import uuid
 import websockets
 from websockets.server import WebSocketServerProtocol
@@ -12,6 +13,7 @@ from websockets.server import WebSocketServerProtocol
 from config import config
 from intent.parser import IntentParser
 from model.router import ModelRouter
+from model.local import LocalLLM
 from prompts.system import build_system_prompt
 from tools.functions import TOOLS
 from settings.ai_handler import (
@@ -86,6 +88,8 @@ async def handle_message(ws: WebSocketServerProtocol, raw: str):
             await handle_voice_preview(ws, data)
         elif msg_type == "confirm_response":
             await handle_confirm_response(ws, data)
+        elif msg_type == "model_test":
+            await handle_model_test(ws, data)
         else:
             logger.warning(f"未知消息类型: {msg_type}")
     except json.JSONDecodeError:
@@ -906,6 +910,73 @@ def format_capability_results(intent: str, results: list) -> str:
 async def handle_confirm_response(ws: WebSocketServerProtocol, data: dict):
     confirmed = data.get("confirmed", False)
     logger.info(f"用户确认: {confirmed}")
+async def handle_model_test(ws: WebSocketServerProtocol, data: dict):
+    test_id = data.get("id", "")
+    mode = data.get("mode", "cloud")
+    logger.info(f"模型测试: mode={mode}")
+
+    if mode == "local":
+        base_url = user_settings.get("model.local.base_url", "http://localhost:11434")
+        local_llm = LocalLLM(base_url)
+        result = await local_llm.check_connection()
+
+        if result["connected"]:
+            model_id = user_settings.get("model.local.model_id", "")
+            models = result["models"]
+            if model_id and model_id not in models:
+                msg = f"Ollama 已连接，但模型 '{model_id}' 未拉取（可用: {', '.join(models) or '无'})"
+            else:
+                msg = f"Ollama 连接成功（已安装 {len(models)} 个模型）"
+            await ws.send(json.dumps({
+                "type": "model_test_result", "id": test_id,
+                "success": True, "message": msg,
+            }))
+        else:
+            await ws.send(json.dumps({
+                "type": "model_test_result", "id": test_id,
+                "success": False,
+                "message": result.get("error", "Ollama 连接失败"),
+            }))
+        return
+
+    # Cloud test
+    config = {
+        "base_url": user_settings.get("model.cloud.base_url", ""),
+        "api_key": user_settings.get("model.cloud.api_key", ""),
+        "model_id": user_settings.get("model.cloud.model_id", "gpt-4o"),
+        "api_protocol": user_settings.get("model.cloud.api_protocol", "openai"),
+        "timeout": user_settings.get("model.timeout", 120),
+    }
+
+    if not config["api_key"]:
+        await ws.send(json.dumps({
+            "type": "model_test_result", "id": test_id,
+            "success": False,
+            "message": "未配置 API Key，请在设置中填写",
+        }))
+        return
+
+    start = time.time()
+    try:
+        cloud = model_router.cloud
+        result = await cloud.chat(
+            messages=[{"role": "user", "content": "Hi"}],
+            config=config,
+            stream=False,
+        )
+        elapsed = time.time() - start
+        await ws.send(json.dumps({
+            "type": "model_test_result", "id": test_id,
+            "success": True,
+            "message": f"连接成功（耗时 {(elapsed * 1000):.0f}ms）",
+        }))
+    except Exception as e:
+        elapsed = time.time() - start
+        await ws.send(json.dumps({
+            "type": "model_test_result", "id": test_id,
+            "success": False,
+            "message": f"连接失败（{(elapsed * 1000):.0f}ms）: {e}",
+        }))
 
 
 async def handler(ws: WebSocketServerProtocol):

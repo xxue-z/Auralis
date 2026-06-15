@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSettingsStore } from "../../stores/settingsStore";
+import { useAgentStore } from "../../stores/agentStore";
 import {
   fetchVendors,
   type Vendor,
@@ -9,6 +10,18 @@ import {
   listOllamaModels,
   type OllamaModel,
 } from "../../services/ollama";
+import { wsService } from "../../services/websocket";
+
+async function ensureWsConnected(): Promise<boolean> {
+  if (wsService.isConnected) return true;
+  const url = useAgentStore.getState().url;
+  wsService.connect(url);
+  for (let i = 0; i < 40; i++) {
+    await new Promise((r) => setTimeout(r, 200));
+    if (wsService.isConnected) return true;
+  }
+  return false;
+}
 
 type Tab = "cloud" | "local";
 
@@ -55,6 +68,8 @@ function CloudModelConfig() {
 
   const selectedVendor = settings["model.cloud.vendor"] || "OpenAI";
   const currentVendor = vendors.find((v) => v.vendor === selectedVendor);
+  const [cloudTest, setCloudTest] = useState<{ testing: boolean; success?: boolean; message?: string }>({ testing: false });
+  const cloudTestRef = useRef<((data: any) => void) | null>(null);
 
   // 加载厂商列表
   useEffect(() => {
@@ -64,8 +79,15 @@ function CloudModelConfig() {
     });
   }, []);
 
+  const CUSTOM_VENDOR = "自定义";
+
   // 选择厂商时自动填充
   const handleVendorChange = (vendorName: string) => {
+    if (vendorName === CUSTOM_VENDOR) {
+      setSetting("model.cloud.vendor", CUSTOM_VENDOR);
+      return;
+    }
+
     const vendor = vendors.find((v) => v.vendor === vendorName);
     if (!vendor) return;
 
@@ -77,6 +99,45 @@ function CloudModelConfig() {
       setSetting("model.cloud.model_id", vendor.models[0]);
     }
   };
+
+  const handleCloudTest = async () => {
+    setCloudTest({ testing: true });
+
+    const ok = await ensureWsConnected();
+    if (!ok) {
+      setCloudTest({ testing: false, success: false, message: "无法连接到 Agent 后端，请确认程序已启动" });
+      return;
+    }
+
+    const id = crypto.randomUUID();
+
+    const handler = (data: any) => {
+      if (data.id === id) {
+        cloudTestRef.current = null;
+        setCloudTest({ testing: false, success: data.success, message: data.message });
+      }
+    };
+
+    cloudTestRef.current = handler;
+    wsService.on("model_test_result", handler);
+    wsService.send({ type: "model_test", id, mode: "cloud" });
+
+    setTimeout(() => {
+      if (cloudTestRef.current) {
+        wsService.off("model_test_result", cloudTestRef.current);
+        cloudTestRef.current = null;
+        setCloudTest(prev => prev.testing ? { testing: false, success: false, message: "请求超时" } : prev);
+      }
+    }, (settings["model.timeout"] || 120) * 1000);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (cloudTestRef.current) {
+        wsService.off("model_test_result", cloudTestRef.current);
+      }
+    };
+  }, []);
 
   if (loading) {
     return <div className="text-xs text-gray-400 text-center py-4">加载中...</div>;
@@ -102,10 +163,11 @@ function CloudModelConfig() {
                          focus:outline-none focus:border-primary-400"
             >
               {vendors.map((v) => (
-                <option key={v.vendor} value={v.vendor}>
-                  {v.vendor} — {v.description}
-                </option>
-              ))}
+                  <option key={v.vendor} value={v.vendor}>
+                    {v.vendor} — {v.description}
+                  </option>
+                ))}
+                <option value={CUSTOM_VENDOR}>自定义 — 手动配置 API 地址和模型</option>
             </select>
           </div>
 
@@ -161,21 +223,63 @@ function CloudModelConfig() {
           </div>
 
           {/* 模型选择 */}
-          {currentVendor && currentVendor.models.length > 0 && (
-            <div>
-              <label className="text-xs text-gray-500">模型</label>
-              <select
-                value={settings["model.cloud.model_id"] || ""}
-                onChange={(e) => setSetting("model.cloud.model_id", e.target.value)}
-                className="w-full mt-1 text-xs px-2 py-1.5 border border-gray-200 rounded bg-white/80
-                           focus:outline-none focus:border-primary-400"
-              >
+          <div>
+            <label className="text-xs text-gray-500">模型</label>
+            <input
+              type="text"
+              list="cloud-model-list"
+              value={settings["model.cloud.model_id"] || ""}
+              onChange={(e) => setSetting("model.cloud.model_id", e.target.value)}
+              placeholder="选择或输入模型名称"
+              className="w-full mt-1 text-xs px-2 py-1.5 border border-gray-200 rounded bg-white/80
+                         focus:outline-none focus:border-primary-400"
+            />
+            {currentVendor && currentVendor.models.length > 0 && (
+              <datalist id="cloud-model-list">
                 {currentVendor.models.map((m) => (
-                  <option key={m} value={m}>{m}</option>
+                  <option key={m} value={m} />
                 ))}
-              </select>
-            </div>
-          )}
+              </datalist>
+            )}
+          </div>
+
+          {/* 超时 */}
+          <div>
+            <label className="text-xs text-gray-500">超时（秒）</label>
+            <input
+              type="number"
+              min={5}
+              max={600}
+              value={settings["model.timeout"] ?? 120}
+              onChange={(e) => setSetting("model.timeout", Math.max(5, Math.min(600, Number(e.target.value) || 120)))}
+              className="w-full mt-1 text-xs px-2 py-1.5 border border-gray-200 rounded bg-white/80
+                         focus:outline-none focus:border-primary-400"
+            />
+          </div>
+
+          {/* 测试连接 */}
+          <div>
+            <button
+              onClick={handleCloudTest}
+              disabled={cloudTest.testing}
+              className="w-full mt-1 text-xs px-3 py-1.5 rounded border transition-colors
+                         disabled:opacity-50 disabled:cursor-not-allowed
+                         bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
+            >
+              {cloudTest.testing ? "⏳ 测试中..." : "🔍 测试连接"}
+            </button>
+            {!cloudTest.testing && cloudTest.message && (
+              <div
+                className={`mt-1.5 text-xs px-2 py-1 rounded ${
+                  cloudTest.success
+                    ? "bg-green-50 text-green-700 border border-green-200"
+                    : "bg-red-50 text-red-600 border border-red-200"
+                }`}
+              >
+                {cloudTest.success ? "✅ " : "❌ "}{cloudTest.message}
+              </div>
+            )}
+          </div>
         </>
       )}
     </div>
@@ -190,6 +294,8 @@ function LocalModelConfig() {
   const [ollamaConnected, setOllamaConnected] = useState<boolean | null>(null);
   const [models, setModels] = useState<OllamaModel[]>([]);
 
+  const [localTest, setLocalTest] = useState<{ testing: boolean; success?: boolean; message?: string }>({ testing: false });
+  const localTestRef = useRef<((data: any) => void) | null>(null);
   const baseUrl = settings["model.local.base_url"] || "http://localhost:11434/v1";
 
   // 检测 Ollama 状态
@@ -203,6 +309,45 @@ function LocalModelConfig() {
       }
     });
   }, [settings["model.local.enabled"], baseUrl]);
+
+  const handleLocalTest = async () => {
+    setLocalTest({ testing: true });
+
+    const ok = await ensureWsConnected();
+    if (!ok) {
+      setLocalTest({ testing: false, success: false, message: "无法连接到 Agent 后端，请确认程序已启动" });
+      return;
+    }
+
+    const id = crypto.randomUUID();
+
+    const handler = (data: any) => {
+      if (data.id === id) {
+        localTestRef.current = null;
+        setLocalTest({ testing: false, success: data.success, message: data.message });
+      }
+    };
+
+    localTestRef.current = handler;
+    wsService.on("model_test_result", handler);
+    wsService.send({ type: "model_test", id, mode: "local" });
+
+    setTimeout(() => {
+      if (localTestRef.current) {
+        wsService.off("model_test_result", localTestRef.current);
+        localTestRef.current = null;
+        setLocalTest(prev => prev.testing ? { testing: false, success: false, message: "请求超时" } : prev);
+      }
+    }, (settings["model.timeout"] || 120) * 1000);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (localTestRef.current) {
+        wsService.off("model_test_result", localTestRef.current);
+      }
+    };
+  }, []);
 
   return (
     <div className="space-y-3">
@@ -292,6 +437,44 @@ function LocalModelConfig() {
                 className="w-full mt-1 text-xs px-2 py-1.5 border border-gray-200 rounded bg-white/80
                            focus:outline-none focus:border-primary-400"
               />
+            )}
+          </div>
+
+          {/* 超时 */}
+          <div>
+            <label className="text-xs text-gray-500">超时（秒）</label>
+            <input
+              type="number"
+              min={5}
+              max={600}
+              value={settings["model.timeout"] ?? 120}
+              onChange={(e) => setSetting("model.timeout", Math.max(5, Math.min(600, Number(e.target.value) || 120)))}
+              className="w-full mt-1 text-xs px-2 py-1.5 border border-gray-200 rounded bg-white/80
+                         focus:outline-none focus:border-primary-400"
+            />
+          </div>
+
+          {/* 测试连接 */}
+          <div>
+            <button
+              onClick={handleLocalTest}
+              disabled={localTest.testing}
+              className="w-full mt-1 text-xs px-3 py-1.5 rounded border transition-colors
+                         disabled:opacity-50 disabled:cursor-not-allowed
+                         bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
+            >
+              {localTest.testing ? "⏳ 测试中..." : "🔍 测试连接"}
+            </button>
+            {!localTest.testing && localTest.message && (
+              <div
+                className={`mt-1.5 text-xs px-2 py-1 rounded ${
+                  localTest.success
+                    ? "bg-green-50 text-green-700 border border-green-200"
+                    : "bg-red-50 text-red-600 border border-red-200"
+                }`}
+              >
+                {localTest.success ? "✅ " : "❌ "}{localTest.message}
+              </div>
             )}
           </div>
         </>

@@ -204,25 +204,29 @@ export function PetApp() {
 
   // ── Pre-create windows at startup (avoids WebView2 init delay) ──
   useEffect(() => {
-    // Chat window
+    const saved = loadPosition();
+    const petX = saved?.x ?? 200;
+    const petY = saved?.y ?? 200;
+    const winW = 240;
+    const chatX = petX + winW + 8;
+
     new WebviewWindow("chat", {
       ...CHAT_WIN_OPTIONS,
-      x: -1000,
-      y: -1000,
+      x: chatX,
+      y: petY,
       visible: false,
     }).once("tauri://error", (e) => {
       console.error("[PetApp] Failed to pre-create chat window:", e);
     });
-    // Settings window
     new WebviewWindow("settings", {
       ...SETTINGS_WIN_OPTIONS,
-      x: -1000,
-      y: -1000,
+      x: chatX,
+      y: petY,
       visible: false,
     }).once("tauri://error", (e) => {
       console.error("[PetApp] Failed to pre-create settings window:", e);
     });
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Open chat window ─────────────────────────────────────────
   const openChat = useCallback(async () => {

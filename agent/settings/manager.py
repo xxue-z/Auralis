@@ -35,6 +35,11 @@ SETTINGS_SCHEMA: dict[str, dict[str, Any]] = {
         "label": "云端模型", "description": "复杂任务使用的云端 AI 供应商",
         "ai_editable": True, "confirm_required": True,
     },
+    "model.timeout": {
+        "type": "number", "default": 120, "min": 5, "max": 600, "step": 5,
+        "label": "超时（秒）", "description": "模型 API 调用的最大等待时间",
+        "ai_editable": True, "confirm_required": False,
+    },
     "security.confirm_destructive": {
         "type": "boolean", "default": True,
         "label": "确认破坏性操作", "description": "删除文件或修改系统前要求确认",

@@ -13,8 +13,9 @@ DEFAULT_OLLAMA_URL = "http://localhost:11434"
 class LocalLLM:
     """Ollama 本地模型管理器"""
 
-    def __init__(self, base_url: str = DEFAULT_OLLAMA_URL):
+    def __init__(self, base_url: str = DEFAULT_OLLAMA_URL, timeout: int = 120):
         self._base_url = base_url.rstrip("/")
+        self._timeout = timeout
 
     @property
     def api_url(self) -> str:
@@ -109,7 +110,7 @@ class LocalLLM:
             模型详情字典，或 None
         """
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
+            async with httpx.AsyncClient(timeout=self._timeout) as client:
                 resp = await client.post(
                     f"{self._base_url}/api/show",
                     json={"name": model_name},
@@ -153,4 +154,5 @@ class LocalLLM:
             "api_key": "ollama",
             "model_id": settings.get("model.local.model_id", "qwen2.5:1.5b"),
             "api_protocol": "openai",
+            "timeout": settings.get("model.timeout", 120),
         }
