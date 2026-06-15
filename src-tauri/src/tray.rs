@@ -110,11 +110,18 @@ pub fn setup(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
                 "settings" => {
-                    if let Some(window) = app.get_webview_window("pet") {
-                        let _ = window.show();
-                        let _ = window.set_focus();
+                    // 直接显示设置窗口（不依赖前端事件，更可靠）
+                    if let Some(win) = app.get_webview_window("settings") {
+                        let _ = win.show();
+                        let _ = win.set_focus();
+                    } else {
+                        log::warn!("[Tray] settings window not found, emitting event as fallback");
+                        if let Some(window) = app.get_webview_window("pet") {
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                        }
+                        let _ = app.emit("open-settings", ());
                     }
-                    let _ = app.emit("open-settings", ());
                 }
                 "quit" => {
                     log::info!("托盘退出：正在停止 Agent 进程...");
