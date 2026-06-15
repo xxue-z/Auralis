@@ -72,9 +72,26 @@ class IntentParser:
         ("关闭设置", "关闭配置"): "settings_close",
     }
 
+    # 句尾语气词 — 不改变句子实际含义，匹配前剥离
+    TRAILING_PARTICLES = ("啊", "吧", "嘛", "呀", "呢", "哦", "啦", "哟", "呗")
+
+    @classmethod
+    def _strip_particles(cls, text: str) -> str:
+        """去掉句尾语气词，避免"打开啊"误匹配为 app_launch"""
+        for p in cls.TRAILING_PARTICLES:
+            if text.endswith(p):
+                return text[:-len(p)].rstrip()
+        return text
+
     def parse(self, user_input: str) -> dict:
         """解析用户输入，返回意图和生成的 Capability 列表"""
         text = user_input.strip().lower()
+        # 剥离句尾语气词后再匹配（"打开啊" → "打开" 仍匹配，但确保 _extract_app 能正确过滤）
+        text = self._strip_particles(text)
+
+        # 如果内容仅为命令动词+语气词（如"打开啊"、"关闭吧"），无实际操作目标 → 交给 LLM 理解上下文
+        if self._is_bare_command(text):
+            return {"intent": "unknown", "capabilities": [], "reply": None}
 
         # 1. 优先匹配复合短语
         for phrases, intent in self.COMPOUND_PHRASES.items():
@@ -255,6 +272,23 @@ class IntentParser:
         # 默认桌面
         return os.path.expanduser("~/Desktop")
 
+    # 动词/语气词 — 不能作为应用名
+    _COMMAND_WORDS = frozenset((
+        "打开", "启动", "关闭", "退出", "运行", "帮我", "一下",
+        "开启", "杀掉", "结束",
+    ))
+
+    def _is_bare_command(self, text: str) -> bool:
+        """检查文本是否只是命令动词 + 语气词（如"打开啊"），无实际应用名"""
+        words = text.split()
+        if not words:
+            return False
+        for word in words:
+            bare = word.strip("".join(self.TRAILING_PARTICLES))
+            if bare not in self._COMMAND_WORDS:
+                return False
+        return True
+
     def _extract_app(self, text: str) -> str:
         """从文本中提取应用名"""
         for name, exe in self.APP_MAP.items():
@@ -262,8 +296,10 @@ class IntentParser:
                 return exe
         # 尝试直接使用文本中的单词
         for word in text.split():
-            if len(word) > 2 and word not in ("打开", "启动", "关闭", "退出", "运行", "帮我", "一下"):
-                return word
+            bare = word.strip("".join(self.TRAILING_PARTICLES))
+            if len(bare) > 2 and bare not in self._COMMAND_WORDS:
+                return bare
+            # 如果剥离语气词后只剩命令动词，说明这不是应用名
         return "notepad"  # 默认
 
     def _generate_reply(self, intent: str, text: str, capabilities: list[dict]) -> str:

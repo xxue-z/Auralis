@@ -1,3 +1,5 @@
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { Message } from "../../stores/chatStore";
 
 interface Props {
@@ -28,7 +30,15 @@ export function MessageBubble({ message, chatColor = "#0ea5e9" }: Props) {
         } ${message.status === "error" ? "bg-red-100 text-red-600" : ""}`}
         style={isUser ? { background: chatColor } : undefined}
       >
-        {message.content}
+        {isUser ? (
+          message.content
+        ) : (
+          <div className="prose prose-sm max-w-none prose-p:my-1 prose-code:bg-gray-200 prose-code:px-1 prose-code:rounded prose-pre:bg-gray-800 prose-pre:text-gray-100">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {message.content}
+            </ReactMarkdown>
+          </div>
+        )}
         {message.status === "streaming" && (
           <span className="inline-block w-1.5 h-3.5 bg-gray-400 ml-0.5 animate-pulse" />
         )}

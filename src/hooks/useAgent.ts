@@ -25,8 +25,22 @@ export function useAgent() {
         const messages = useChatStore.getState().messages;
         const lastAgentMsg = messages.filter((m) => m.role === "agent").pop();
         if (lastAgentMsg && lastAgentMsg.status === "streaming") {
-          appendToMessage(lastAgentMsg.id, data.content);
+          if (lastAgentMsg.id === data.id) {
+            appendToMessage(lastAgentMsg.id, data.content);
+          } else {
+            // 同一 message_id 被多次调用时，ID 不同（UUID 后缀），视为新消息
+            addMessage({
+              id: data.id || generateId(),
+              role: "agent",
+              content: data.content,
+              status: "streaming",
+              timestamp: Date.now(),
+            });
+          }
         } else {
+          // 检查是否已有相同 ID 的消息（防重复）
+          const existing = messages.find((m) => m.id === data.id);
+          if (existing) return;
           addMessage({
             id: data.id || generateId(),
             role: "agent",
@@ -38,11 +52,14 @@ export function useAgent() {
         setThinking(false);
       } else if (data.status === "done") {
         const messages = useChatStore.getState().messages;
-        const lastAgentMsg = messages.filter((m) => m.role === "agent").pop();
-        if (lastAgentMsg) {
-          updateMessage(lastAgentMsg.id, { status: "done" });
+        const agentMsg = messages.filter((m) => m.role === "agent").find((m) => m.id === data.id) || messages.filter((m) => m.role === "agent").pop();
+        if (agentMsg) {
+          updateMessage(agentMsg.id, { status: "done" });
         }
       } else if (data.status === "error") {
+        const messages = useChatStore.getState().messages;
+        const existing = messages.find((m) => m.id === data.id);
+        if (existing) return;
         addMessage({
           id: data.id || generateId(),
           role: "agent",
@@ -184,12 +201,20 @@ export function useAgent() {
       }
     };
 
+    // 处理 Agent 角色状态更新（独立事件，不影响消息列表）
+    const handlePersonaUpdate = (data: any) => {
+      if (data.persona_state) {
+        useAgentStore.getState().setPersonaState(data.persona_state);
+      }
+    };
+
     wsService.on("agent_response", handleAgentResponse);
     wsService.on("capability_request", handleCapabilityRequest);
     wsService.on("settings_query", handleSettingsQuery);
     wsService.on("settings_change", handleSettingsChange);
     wsService.on("agent_command", handleAgentCommand);
     wsService.on("agent_audio", handleAgentAudio);
+    wsService.on("persona_update", handlePersonaUpdate);
 
     return () => {
       wsService.off("agent_response", handleAgentResponse);
@@ -198,6 +223,7 @@ export function useAgent() {
       wsService.off("settings_change", handleSettingsChange);
       wsService.off("agent_command", handleAgentCommand);
       wsService.off("agent_audio", handleAgentAudio);
+      wsService.off("persona_update", handlePersonaUpdate);
     };
   }, [addMessage, updateMessage, appendToMessage, setThinking]);
 

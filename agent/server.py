@@ -768,8 +768,8 @@ async def handle_voice_preview(ws: WebSocketServerProtocol, data: dict):
 
 async def send_text_response(ws: WebSocketServerProtocol, message_id: str, text: str):
     """发送流式文本回复，可选附带 TTS 音频"""
-    # 使用新 ID 生成 agent 回复（避免与 user 消息 ID 冲突）
-    agent_msg_id = f"agent_{message_id}"
+    # 每次调用使用唯一 ID，避免同一 message_id 多次调用导致前端消息串台
+    agent_msg_id = f"agent_{message_id}_{uuid.uuid4().hex[:6]}"
     # 流式发送文本
     for i in range(0, len(text), 10):
         chunk = text[i:i+10]
@@ -807,12 +807,9 @@ async def send_text_response(ws: WebSocketServerProtocol, message_id: str, text:
         except Exception as e:
             logger.error(f"TTS 合成失败: {e}")
 
-    # 语音播放完毕，回到 idle
+    # 语音播放完毕，回到 idle（使用独立事件，避免被前端当消息 done 处理）
     await ws.send(json.dumps({
-        "type": "agent_response",
-        "id": message_id,
-        "content": "",
-        "status": "done",
+        "type": "persona_update",
         "persona_state": "idle",
     }))
 

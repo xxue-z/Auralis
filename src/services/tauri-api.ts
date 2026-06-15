@@ -1,5 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 
+const CAPABILITY_TIMEOUT_MS = 25000;
+
 /**
  * 执行 OS 操作能力
  * 通过 Tauri Command 调用 Rust 端的 OS Adapter
@@ -14,6 +16,13 @@ export async function executeCapability(request: {
   success: boolean;
   data?: any;
   error?: string;
+  needs_confirmation?: any;
 }> {
-  return invoke("execute_capability", { request });
+  const result = await Promise.race([
+    invoke("execute_capability", { request }),
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("操作执行超时")), CAPABILITY_TIMEOUT_MS)
+    ),
+  ]);
+  return result as any;
 }
