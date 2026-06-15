@@ -46,7 +46,7 @@ export function PixiCanvas({ width, height, className, onApp }: PixiCanvasProps)
     return () => {
       cancelled = true;
       if (appRef.current) {
-        appRef.current.destroy(true);
+        try { appRef.current.destroy(true); } catch {}
         appRef.current = null;
       }
     };

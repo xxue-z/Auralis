@@ -129,15 +129,35 @@ export async function loadModel(config: Live2DModelConfig): Promise<any> {
 
   const { Live2DModel } = await import("pixi-live2d-display/cubism4");
 
-  // 导入的模型存的是原始文件路径，需要动态转换为 asset 协议 URL
-  const modelPath = config.modelDir
-    ? convertFileSrc(config.path)
+  // 解析原始文件路径：逐层剥离可能累积的 asset 协议前缀
+  // （兼容跨窗口同步或旧版本存储时 path 已被 convertFileSrc 转换的情况）
+  function resolveRawPath(p: string): string {
+    const assetRe = /^https?:\/\/asset\.localhost\//;
+    let cur = p;
+    while (assetRe.test(cur)) {
+      cur = decodeURIComponent(cur.replace(assetRe, ''));
+    }
+    return cur;
+  }
+
+  const modelPath = config.type === "imported"
+    ? convertFileSrc(resolveRawPath(config.path))
     : config.path;
-  console.log(`[Live2D] 加载模型: ${modelPath}`);
-  const model = await Live2DModel.from(modelPath);
-  console.log(`[Live2D] 模型加载成功: ${config.id}`);
-  _modelCache.set(config.id, model);
-  return model;
+  console.log(`[Live2D] 加载模型: ${modelPath}`, { id: config.id, type: config.type, rawPath: config.path });
+  try {
+    const model = await Live2DModel.from(modelPath);
+    console.log(`[Live2D] 模型加载成功: ${config.id}`);
+    _modelCache.set(config.id, model);
+    return model;
+  } catch (e) {
+    console.error(`[Live2D] 模型加载失败: ${config.id}`, {
+      error: e,
+      modelPath,
+      type: config.type,
+      rawPath: config.path,
+    });
+    throw e;
+  }
 }
 
 /**

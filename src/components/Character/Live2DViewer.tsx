@@ -64,14 +64,6 @@ export function Live2DViewer(_props: Props) {
     return () => { unlisten.then((fn) => fn()); };
   }, []);
 
-  // modelId 变化时提前重置加载状态（防止前次失败状态残留导致 SVG 卡死）
-  useEffect(() => {
-    if (!registryLoaded) return;
-    setModelConfig(null);
-    setModelReady(false);
-    setModelFailed(false);
-  }, [modelId, registryLoaded]);
-
   // 当 modelId 变化时，后台预加载模型
   useEffect(() => {
     if (!registryLoaded) return;
@@ -79,6 +71,7 @@ export function Live2DViewer(_props: Props) {
       setModelConfig(null);
       setModelReady(false);
       setModelFailed(false);
+      setPixiApp(null);
       return;
     }
 
@@ -96,6 +89,7 @@ export function Live2DViewer(_props: Props) {
     if (!config) {
       setModelConfig(null);
       setModelFailed(false);
+      setPixiApp(null);
       return;
     }
 
@@ -105,7 +99,7 @@ export function Live2DViewer(_props: Props) {
 
     // 在模型开始加载前确保 Pixi canvas 尺寸正确
     if (pixiApp) {
-      pixiApp.renderer.resize(displaySize, displaySize);
+      try { pixiApp.renderer.resize(displaySize, displaySize); } catch {}
     }
 
     // 后台加载模型数据
@@ -136,7 +130,7 @@ export function Live2DViewer(_props: Props) {
     const winSize = displaySize + 40;
     const appWindow = getCurrentWebviewWindow();
     appWindow.setSize(new PhysicalSize(winSize, winSize)).catch(() => {});
-    if (pixiApp) {
+    if (pixiApp?.renderer) {
       pixiApp.renderer.resize(displaySize, displaySize);
     }
   }, [displaySize, pixiApp]);
@@ -167,8 +161,8 @@ export function Live2DViewer(_props: Props) {
         />
       )}
 
-      {/* SVG 回退 */}
-      {(modelId === "svg_fallback" || modelFailed) && (
+      {/* SVG 回退：只要 Live2D 模型未完整显示就保留 */}
+      {!(pixiApp && modelConfig && modelReady) && (
         <CharacterSVG state={personaState} size={spriteSize} />
       )}
 

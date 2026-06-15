@@ -108,8 +108,9 @@ export function ModelSelector() {
       )}
 
       {/* 导入按钮 */}
-      <ModelImporter onImported={() => {
+      <ModelImporter onImported={(config) => {
         setModels([...getModels()]);
+        setSetting("appearance.model_id", config.id);
       }} />
 
       {/* 保存提示 */}

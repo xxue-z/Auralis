@@ -61,6 +61,7 @@ export function ModelImporter({ onImported }: ModelImporterProps) {
       );
 
       // 存储原始文件路径（不含 asset 协议），loadModel 时动态转换
+      // 注意：保留原生分隔符（Windows 用 \），convertFileSrc 会正确处理
       const rawPath = `${result.model_dir}/${result.model_json_path}`;
 
       const config: Live2DModelConfig = {

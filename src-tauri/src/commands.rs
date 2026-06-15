@@ -33,6 +33,9 @@ fn do_extract(app: &AppHandle, zip_data: &[u8], extensions_path: Option<&str>) -
     std::fs::create_dir_all(&models_dir)
         .map_err(|e| format!("创建 models 目录失败: {}", e))?;
 
+    // 确保 asset 协议可以访问此 models 目录（自定义 extensions_path 时默认 scope 不覆盖）
+    let _ = app.asset_protocol_scope().allow_directory(&models_dir, true);
+
     let mut archive = ZipArchive::new(std::io::Cursor::new(zip_data))
         .map_err(|e| format!("ZIP 解析失败: {}", e))?;
 

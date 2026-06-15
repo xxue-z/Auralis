@@ -101,7 +101,7 @@ export function Live2DModelWrapper({
         modelRef.current = null;
       }
     };
-  }, [config.id]); // 模型 ID 变化时重新加载
+  }, [config.id, app]); // 模型 ID 或 PIXI app 变化时重新加载
 
   // 状态变化 → 播放对应 motion
   useEffect(() => {
