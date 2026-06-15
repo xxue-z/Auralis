@@ -45,7 +45,7 @@ const SETTINGS_WIN_OPTIONS = {
   height: 440,
   decorations: false,
   transparent: true,
-  alwaysOnTop: true,
+  alwaysOnTop: false,
   resizable: false,
   skipTaskbar: true,
   backgroundColor: { red: 0, green: 0, blue: 0, alpha: 0 },
@@ -204,24 +204,26 @@ export function PetApp() {
 
   // ── Pre-create windows at startup (avoids WebView2 init delay) ──
   useEffect(() => {
-    const saved = loadPosition();
-    const petX = saved?.x ?? 200;
-    const petY = saved?.y ?? 200;
-    const winW = 240;
-    const chatX = petX + winW + 8;
+    const { availWidth, availHeight } = window.screen;
+    // Chat: top-right corner
+    const chatX = availWidth - 320 - 16;
+    const chatY = 16;
+    // Settings: centered on screen
+    const setX = Math.round((availWidth - 640) / 2);
+    const setY = Math.round((availHeight - 440) / 2);
 
     new WebviewWindow("chat", {
       ...CHAT_WIN_OPTIONS,
       x: chatX,
-      y: petY,
+      y: chatY,
       visible: false,
     }).once("tauri://error", (e) => {
       console.error("[PetApp] Failed to pre-create chat window:", e);
     });
     new WebviewWindow("settings", {
       ...SETTINGS_WIN_OPTIONS,
-      x: chatX,
-      y: petY,
+      x: setX,
+      y: setY,
       visible: false,
     }).once("tauri://error", (e) => {
       console.error("[PetApp] Failed to pre-create settings window:", e);
@@ -232,18 +234,12 @@ export function PetApp() {
   const openChat = useCallback(async () => {
     try {
       const existing = await WebviewWindow.getByLabel("chat");
-      const petPos = await appWindow.outerPosition();
-      const petSize = await appWindow.outerSize();
-      const chatX = petPos.x + petSize.width + 8;
-      const chatY = petPos.y;
-
-      // Update cache for any non-drag position saves (e.g. onboarding close)
-      petPosRef.current = { x: petPos.x, y: petPos.y };
-      petSizeRef.current = { width: petSize.width, height: petSize.height };
+      const { availWidth } = window.screen;
+      const chatX = availWidth - 320 - 16;
+      const chatY = 16;
 
       if (existing) {
         const ops: Promise<void>[] = [existing.show()];
-        // Only position on first open — subsequent hide/show keeps manual position
         if (!_chatHasBeenPositioned) {
           ops.push(existing.setPosition(new PhysicalPosition(chatX, chatY)));
           _chatHasBeenPositioned = true;
@@ -253,19 +249,17 @@ export function PetApp() {
         return;
       }
 
-      // Window was destroyed (e.g. closed), recreate at current pet position
+      // Window was destroyed (e.g. closed), recreate at screen top-right
       _chatHasBeenPositioned = true;
       new WebviewWindow("chat", {
         ...CHAT_WIN_OPTIONS,
         x: chatX,
         y: chatY,
-      }).once("tauri://error", (e) => {
-        console.error("[PetApp] Failed to recreate chat window:", e);
       });
     } catch (e) {
       console.warn("[PetApp] openChat failed:", e);
     }
-  }, [appWindow]);
+  }, []);
 
   // Keep openChatRef in sync so pointerUp always calls the latest version
   openChatRef.current = openChat;
@@ -284,14 +278,13 @@ export function PetApp() {
   const openSettings = useCallback(async () => {
     try {
       const existing = await WebviewWindow.getByLabel("settings");
-      const petPos = await appWindow.outerPosition();
-      const petSize = await appWindow.outerSize();
-      const sx = petPos.x + petSize.width + 8;
-      const sy = petPos.y;
 
       if (existing) {
         const ops: Promise<void>[] = [existing.show()];
         if (!_settingsHasBeenPositioned) {
+          const { availWidth, availHeight } = window.screen;
+          const sx = Math.round((availWidth - 640) / 2);
+          const sy = Math.round((availHeight - 440) / 2);
           ops.push(existing.setPosition(new PhysicalPosition(sx, sy)));
           _settingsHasBeenPositioned = true;
         }
@@ -300,19 +293,20 @@ export function PetApp() {
         return;
       }
 
-      // Window was destroyed, recreate
+      // Window was destroyed, recreate at center
       _settingsHasBeenPositioned = true;
+      const { availWidth, availHeight } = window.screen;
+      const sx = Math.round((availWidth - 640) / 2);
+      const sy = Math.round((availHeight - 440) / 2);
       new WebviewWindow("settings", {
         ...SETTINGS_WIN_OPTIONS,
         x: sx,
         y: sy,
-      }).once("tauri://error", (e) => {
-        console.error("[PetApp] Failed to recreate settings window:", e);
       });
     } catch (e) {
       console.warn("[PetApp] openSettings failed:", e);
     }
-  }, [appWindow]);
+  }, []);
 
   // ── Handle onboarding complete ───────────────────────────────
   const handleOnboardingComplete = useCallback(() => {
