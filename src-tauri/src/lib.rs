@@ -120,6 +120,7 @@ pub fn get_agent_manager() -> &'static AgentProcessManager {
 
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             // 设置托盘
             tray::setup(app.handle())?;
@@ -163,6 +164,7 @@ pub fn run() {
             commands::execute_capability,
             commands::resize_window,
             commands::extract_model_zip,
+            commands::extract_model_zip_from_path,
             commands::open_in_explorer,
         ])
         .build(tauri::generate_context!())

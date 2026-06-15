@@ -1,6 +1,7 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { open } from "@tauri-apps/plugin-dialog";
 import { addModel } from "./live2dService";
 import type { Live2DModelConfig } from "../../types/live2d";
 
@@ -26,7 +27,6 @@ export function ModelImporter({ onImported }: ModelImporterProps) {
   const [error, setError] = useState<string | null>(null);
   const [lastModel, setLastModel] = useState<ExtractModelResult | null>(null);
   const [progress, setProgress] = useState<ExtractProgress | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
   const unlistenRef = useRef<UnlistenFn | null>(null);
 
   useEffect(() => {
@@ -35,17 +35,17 @@ export function ModelImporter({ onImported }: ModelImporterProps) {
     };
   }, []);
 
-  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleImport = async () => {
+    const selected = await open({
+      multiple: false,
+      filters: [{ name: "Live2D 模型", extensions: ["zip"] }],
+    });
+    if (!selected) return;
 
     setImporting(true);
     setError(null);
     setLastModel(null);
     setProgress(null);
-
-    // 让 UI 先渲染"导入中..."状态
-    await new Promise((r) => setTimeout(r, 50));
 
     // 监听 Rust 进度事件
     const unlisten = await listen<ExtractProgress>("import-progress", (e) => {
@@ -54,13 +54,11 @@ export function ModelImporter({ onImported }: ModelImporterProps) {
     unlistenRef.current = unlisten;
 
     try {
-      const buffer = await file.arrayBuffer();
-      const zipData = new Uint8Array(buffer);
-
-      // 直接传入 Uint8Array，Tauri IPC 以二进制传输（避免 JSON 序列化大数组）
-      const result = await invoke<ExtractModelResult>("extract_model_zip", {
-        zipData,
-      });
+      // Rust 端直接读取文件，避免 JS 读取大文件阻塞 UI
+      const result = await invoke<ExtractModelResult>(
+        "extract_model_zip_from_path",
+        { zipPath: selected },
+      );
 
       const assetUrl = convertFileSrc(
         `${result.model_dir}/${result.model_json_path}`
@@ -91,7 +89,6 @@ export function ModelImporter({ onImported }: ModelImporterProps) {
       unlistenRef.current = null;
       setImporting(false);
       setProgress(null);
-      if (fileRef.current) fileRef.current.value = "";
     }
   };
 
@@ -101,15 +98,8 @@ export function ModelImporter({ onImported }: ModelImporterProps) {
 
   return (
     <div className="space-y-2">
-      <input
-        ref={fileRef}
-        type="file"
-        accept=".zip"
-        onChange={handleImport}
-        className="hidden"
-      />
       <button
-        onClick={() => fileRef.current?.click()}
+        onClick={handleImport}
         disabled={importing}
         className="relative w-full py-2 text-xs text-gray-600 bg-gray-50 border border-gray-200
                    rounded-lg hover:bg-gray-100 disabled:opacity-50 transition-colors overflow-hidden"

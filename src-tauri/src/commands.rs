@@ -21,12 +21,8 @@ pub struct ExtractModelResult {
 }
 
 /// 提取 Live2D 模型压缩包到数据目录，递归查找 .model3.json / .model.json
-/// zip_data 直接传入 Uint8Array（Tauri IPC 二进制传输）
-#[tauri::command]
-pub async fn extract_model_zip(
-    app: AppHandle,
-    zip_data: Vec<u8>,
-) -> Result<ExtractModelResult, String> {
+/// 内部逻辑，供两个命令共用（内存 IPC 和 文件路径）
+fn do_extract(app: &AppHandle, zip_data: &[u8]) -> Result<ExtractModelResult, String> {
     let models_dir = app.path().app_data_dir()
         .map_err(|e| format!("获取数据目录失败: {}", e))?
         .join("models");
@@ -62,7 +58,9 @@ pub async fn extract_model_zip(
         if is_dir { continue; }
 
         let lower = name.to_lowercase();
-        if lower.ends_with(".model3.json") || lower.ends_with(".model.json") {
+        let fname = Path::new(&lower).file_name()
+            .and_then(|s| s.to_str()).unwrap_or("");
+        if lower.ends_with(".model3.json") || fname == "model.json" || fname.ends_with(".model.json") {
             log::info!("找到模型文件: {}", name);
             model_json_path = Some(name.clone());
         }
@@ -115,6 +113,26 @@ pub async fn extract_model_zip(
         model_dir: model_dir_str,
         model_json_path: model_json_rel,
     })
+}
+
+/// 从内存数据提取（已有方式，保留兼容）
+#[tauri::command]
+pub async fn extract_model_zip(
+    app: AppHandle,
+    zip_data: Vec<u8>,
+) -> Result<ExtractModelResult, String> {
+    do_extract(&app, &zip_data)
+}
+
+/// 从文件路径提取（避免 JS 读取大文件阻塞 UI）
+#[tauri::command]
+pub async fn extract_model_zip_from_path(
+    app: AppHandle,
+    zip_path: String,
+) -> Result<ExtractModelResult, String> {
+    let zip_data = std::fs::read(&zip_path)
+        .map_err(|e| format!("读取 ZIP 文件失败 ({}): {}", zip_path, e))?;
+    do_extract(&app, &zip_data)
 }
 
 /// 在文件管理器中打开指定路径
