@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { invoke, convertFileSrc } from "@tauri-apps/api/core";
+import { invoke } from "@tauri-apps/api/core";
 import { listen, emit, type UnlistenFn } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import { addModel } from "./live2dService";
@@ -60,15 +60,14 @@ export function ModelImporter({ onImported }: ModelImporterProps) {
         { zipPath: selected, extensionsPath: extensionsPath || null },
       );
 
-      const assetUrl = convertFileSrc(
-        `${result.model_dir}/${result.model_json_path}`
-      );
+      // 存储原始文件路径（不含 asset 协议），loadModel 时动态转换
+      const rawPath = `${result.model_dir}/${result.model_json_path}`;
 
       const config: Live2DModelConfig = {
         id: result.model_id,
         name: result.model_name,
         nameEn: result.model_name,
-        path: assetUrl,
+        path: rawPath,
         type: "imported",
         modelDir: result.model_dir,
         mappings: {

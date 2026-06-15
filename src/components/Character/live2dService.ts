@@ -2,6 +2,7 @@
  * Live2D 模型加载/缓存服务
  */
 
+import { convertFileSrc } from "@tauri-apps/api/core";
 import type { Live2DModelConfig, ModelRegistry } from "../../types/live2d";
 
 // Cubism 4 框架是否已注册
@@ -128,8 +129,12 @@ export async function loadModel(config: Live2DModelConfig): Promise<any> {
 
   const { Live2DModel } = await import("pixi-live2d-display/cubism4");
 
-  console.log(`[Live2D] 加载模型: ${config.path}`);
-  const model = await Live2DModel.from(config.path);
+  // 导入的模型存的是原始文件路径，需要动态转换为 asset 协议 URL
+  const modelPath = config.modelDir
+    ? convertFileSrc(config.path)
+    : config.path;
+  console.log(`[Live2D] 加载模型: ${modelPath}`);
+  const model = await Live2DModel.from(modelPath);
   console.log(`[Live2D] 模型加载成功: ${config.id}`);
   _modelCache.set(config.id, model);
   return model;

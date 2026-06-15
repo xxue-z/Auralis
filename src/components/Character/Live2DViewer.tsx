@@ -64,6 +64,14 @@ export function Live2DViewer(_props: Props) {
     return () => { unlisten.then((fn) => fn()); };
   }, []);
 
+  // modelId 变化时提前重置加载状态（防止前次失败状态残留导致 SVG 卡死）
+  useEffect(() => {
+    if (!registryLoaded) return;
+    setModelConfig(null);
+    setModelReady(false);
+    setModelFailed(false);
+  }, [modelId, registryLoaded]);
+
   // 当 modelId 变化时，后台预加载模型
   useEffect(() => {
     if (!registryLoaded) return;
@@ -141,7 +149,6 @@ export function Live2DViewer(_props: Props) {
       {/* PixiCanvas 常驻：选中 Live2D 模型后即使加载中也保持 */}
       {modelId !== "svg_fallback" && !modelFailed && (
         <PixiCanvas
-          key={modelId}
           width={displaySize}
           height={displaySize}
           onApp={handlePixiApp}
