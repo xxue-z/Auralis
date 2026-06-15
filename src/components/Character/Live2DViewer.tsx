@@ -9,12 +9,13 @@
 import { useState, useEffect, useCallback } from "react";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { PhysicalSize } from "@tauri-apps/api/dpi";
+import { listen } from "@tauri-apps/api/event";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { useAgentStore } from "../../stores/agentStore";
 import { CharacterSVG } from "./CharacterSVG";
 import { PixiCanvas } from "./PixiCanvas";
 import { Live2DModelWrapper } from "./Live2DModelWrapper";
-import { loadRegistry, getModel, loadModel } from "./live2dService";
+import { loadRegistry, getModel, addModel, loadModel } from "./live2dService";
 import type { Live2DModelConfig } from "../../types/live2d";
 import "./CharacterAnimations.css";
 
@@ -37,7 +38,30 @@ export function Live2DViewer(_props: Props) {
   const personaState = useAgentStore((s) => s.personaState);
 
   useEffect(() => {
-    loadRegistry().then(() => setRegistryLoaded(true));
+    loadRegistry().then(() => {
+      // 从 localStorage 恢复已导入的模型（跨窗口同步）
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key?.startsWith("imported_model:")) {
+            const raw = localStorage.getItem(key);
+            if (raw) {
+              const config = JSON.parse(raw) as Live2DModelConfig;
+              addModel(config);
+            }
+          }
+        }
+      } catch {}
+      setRegistryLoaded(true);
+    });
+  }, []);
+
+  // 监听其他窗口导入的模型事件
+  useEffect(() => {
+    const unlisten = listen<Live2DModelConfig>("model-imported", (e) => {
+      addModel(e.payload);
+    });
+    return () => { unlisten.then((fn) => fn()); };
   }, []);
 
   // 当 modelId 变化时，后台预加载模型
@@ -50,7 +74,17 @@ export function Live2DViewer(_props: Props) {
       return;
     }
 
-    const config = getModel(modelId);
+    let config = getModel(modelId);
+    if (!config) {
+      // 尝试从 localStorage 恢复（跨窗口同步未完成时的回退）
+      try {
+        const raw = localStorage.getItem(`imported_model:${modelId}`);
+        if (raw) {
+          config = JSON.parse(raw) as Live2DModelConfig;
+          addModel(config);
+        }
+      } catch {}
+    }
     if (!config) {
       setModelConfig(null);
       return;

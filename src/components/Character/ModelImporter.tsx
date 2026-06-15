@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { listen, emit, type UnlistenFn } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import { addModel } from "./live2dService";
 import { useSettingsStore } from "../../stores/settingsStore";
@@ -82,6 +82,14 @@ export function ModelImporter({ onImported }: ModelImporterProps) {
       };
 
       addModel(config);
+
+      // 跨窗口同步：通知 pet 窗口 + 持久化到 localStorage
+      emit("model-imported", config).catch(() => {});
+      try {
+        const key = `imported_model:${config.id}`;
+        localStorage.setItem(key, JSON.stringify(config));
+      } catch {}
+
       setLastModel(result);
       onImported?.(config);
     } catch (e: any) {
