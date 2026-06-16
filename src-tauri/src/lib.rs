@@ -4,7 +4,7 @@ mod tray;
 
 use std::path::PathBuf;
 use std::sync::Mutex;
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 
 /// 全局资源目录（设置阶段写入，供 start_agent 使用）
 static AGENT_BIN: once_cell::sync::OnceCell<PathBuf> = once_cell::sync::OnceCell::new();
@@ -168,7 +168,9 @@ pub fn run() {
                     log::info!("Agent 启动成功, PID: {}", pid);
                 }
                 Err(e) => {
-                    log::error!("Agent 启动失败: {}", e);
+                    let msg = format!("Agent 启动失败: {}", e);
+                    log::error!("{}", msg);
+                    let _ = app.handle().emit("agent-error", &msg);
                 }
             }
 

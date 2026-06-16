@@ -53,12 +53,30 @@ jobs:
       - name: Verify agent executable exists
         run: Test-Path agent/dist/auralis-agent.exe
 
-      - name: Build Tauri app (includes agent as resource)
+      - name: Inject version from git tag
+        run: |
+          $version = "${{ github.ref_name }}" -replace '^v', ''
+          Write-Host "Setting version: $version"
+
+          $config = Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json
+          $config.version = $version
+          $config | ConvertTo-Json -Depth 10 | Set-Content src-tauri/tauri.conf.json -Encoding UTF8
+
+          (Get-Content src-tauri/Cargo.toml) -replace '^version = ".*"', "version = `"$version`"" | Set-Content src-tauri/Cargo.toml -Encoding UTF8
+
+      - name: Inject agent resource into tauri config
+        run: |
+          $config = Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json
+          $config.bundle.resources = @{
+            "../agent/dist/auralis-agent.exe" = "agent/auralis-agent.exe"
+          }
+          $config | ConvertTo-Json -Depth 10 | Set-Content src-tauri/tauri.conf.json -Encoding UTF8
+
+      - name: Build Tauri app
         run: npm run tauri build
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          TAURI_CONFIG: '{"bundle":{"resources":{"../agent/dist/auralis-agent.exe":"agent/auralis-agent.exe"}}}'
 
       - name: Upload release assets
         uses: softprops/action-gh-release@v2

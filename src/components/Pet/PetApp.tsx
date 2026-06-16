@@ -340,6 +340,16 @@ export function PetApp() {
     };
   }, [openSettings]);
 
+  useEffect(() => {
+    const unlisten = listen<string>("agent-error", (event) => {
+      console.error("[Agent] " + event.payload);
+      useAgentStore.getState().setStatus("error");
+    });
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, []);
+
   // ── Restore saved position on mount ──────────────────────────
   useEffect(() => {
     const saved = loadPosition();
