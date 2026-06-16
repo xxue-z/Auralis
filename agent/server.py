@@ -20,6 +20,7 @@ from settings.ai_handler import (
     handle_settings_change,
     format_settings_reply, format_change_reply,
 )
+import re
 from tts.router import TTSRouter
 from tts.clone import VoiceCloner
 from tts.generator import VoiceGenerator
@@ -766,6 +767,37 @@ async def handle_voice_preview(ws: WebSocketServerProtocol, data: dict):
         }))
 
 
+def strip_markdown(text: str) -> str:
+    """移除 Markdown 标记，保留纯文本用于 TTS 朗读"""
+    # 代码块 ```...```
+    text = re.sub(r'```[\s\S]*?```', '', text)
+    # 行内代码 `...`
+    text = re.sub(r'`[^`]+`', '', text)
+    # 图片 ![alt](url)
+    text = re.sub(r'!\[([^\]]*)\]\([^)]+\)', r'\1', text)
+    # 链接 [text](url)
+    text = re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', text)
+    # 标题标记 #
+    text = re.sub(r'^#{1,6}\s+', '', text, flags=re.MULTILINE)
+    # 粗体/斜体 ** ** __ __ * * _ _
+    text = re.sub(r'(\*{1,3}|_{1,3})(.*?)\1', r'\2', text)
+    # 列表标记 - * + 开头的行
+    text = re.sub(r'^[\s]*[-*+]\s+', '', text, flags=re.MULTILINE)
+    # 数字列表 1. 2.
+    text = re.sub(r'^[\s]*\d+\.\s+', '', text, flags=re.MULTILINE)
+    # 块引用 >
+    text = re.sub(r'^>\s?', '', text, flags=re.MULTILINE)
+    # 分隔线 --- *** ___
+    text = re.sub(r'^[-*_]{3,}\s*$', '', text, flags=re.MULTILINE)
+    # 表格分隔行 |---|---|
+    text = re.sub(r'^\|[\s\-:|]+\|$', '', text, flags=re.MULTILINE)
+    # HTML 标签
+    text = re.sub(r'<[^>]+>', '', text)
+    # 多余空行合并
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    return text.strip()
+
+
 async def send_text_response(ws: WebSocketServerProtocol, message_id: str, text: str):
     """发送流式文本回复，可选附带 TTS 音频"""
     # 每次调用使用唯一 ID，避免同一 message_id 多次调用导致前端消息串台
@@ -795,7 +827,8 @@ async def send_text_response(ws: WebSocketServerProtocol, message_id: str, text:
     if user_settings.get("voice.enabled", False):
         try:
             voice_id = user_settings.get("voice.preset_id", "sweet_female")
-            audio_data = await tts_router.synthesize(text, voice_id, user_settings)
+            clean_text = strip_markdown(text)
+            audio_data = await tts_router.synthesize(clean_text, voice_id, user_settings)
             if audio_data:
                 audio_b64 = base64.b64encode(audio_data).decode("utf-8")
                 await ws.send(json.dumps({
