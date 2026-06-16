@@ -12,8 +12,8 @@ let onStopCallback: (() => void) | null = null;
  */
 export async function playAudio(
   audioBase64: string,
-  onPlay?: () => void,
-  onStop?: () => void,
+  onPlay: (() => void) | null = null,
+  onStop: (() => void) | null = null,
 ): Promise<void> {
   // 停止当前播放
   stopAudio();

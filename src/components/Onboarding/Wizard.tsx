@@ -5,7 +5,7 @@ import { StepStyle } from "./StepStyle";
 import { StepTune } from "./StepTune";
 import { StepVoice } from "./StepVoice";
 
-interface OnboardingData {
+export interface OnboardingData {
   locale: string;
   spriteStyle: string;
   spriteColor: string;
