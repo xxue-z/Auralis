@@ -58,7 +58,7 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          TAURI_CONFIG: '{"bundle":{"resources":{"../agent/dist/auralis-agent.exe":"agent/auralis-agent.exe"}}}'
+          TAURI_CONFIG: '{"bundle":{"icon":["icons/icon.png","icons/icon.ico"],"resources":{"../agent/dist/auralis-agent.exe":"agent/auralis-agent.exe"}}}'
 
       - name: Upload release assets
         uses: softprops/action-gh-release@v2
