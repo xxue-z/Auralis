@@ -138,7 +138,6 @@ export function VoiceConfig() {
             <div className="grid grid-cols-2 gap-1.5">
               {[
                 { id: "edge", name: "Edge TTS", descKey: "voice_engine_free" },
-                { id: "xiaomi", name: "MiMo", descKey: "voice_engine_cloud" },
                 { id: "openai", name: "OpenAI", descKey: "voice_engine_paid" },
                 { id: "kokoro", name: "Kokoro", descKey: "voice_engine_local_beta" },
               ].map((e) => (
