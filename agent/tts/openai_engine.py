@@ -26,11 +26,17 @@ class OpenAITTSEngine(TTSEngine):
         voice_id: str,
         speed: float = 1.0,
         pitch: float = 1.0,
+        api_key: str = "",
     ) -> Optional[bytes]:
         from openai import AsyncOpenAI
         from config import config as app_config
 
-        client = AsyncOpenAI(api_key=app_config.OPENAI_API_KEY)
+        key = api_key or app_config.OPENAI_API_KEY
+        if not key:
+            logger.error("OpenAI TTS: API Key 未配置（env OPENAI_API_KEY 或 模型设置中的 API Key）")
+            return None
+
+        client = AsyncOpenAI(api_key=key)
         voice = self.VOICE_MAP.get(voice_id, "alloy")
 
         response = await client.audio.speech.create(
