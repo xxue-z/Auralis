@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useSettingsStore } from "../../stores/settingsStore";
-import { useAgentStore } from "../../stores/agentStore";
 import {
   fetchVendors,
   type Vendor,
@@ -12,17 +11,6 @@ import {
   type OllamaModel,
 } from "../../services/ollama";
 import { wsService } from "../../services/websocket";
-
-async function ensureWsConnected(): Promise<boolean> {
-  if (wsService.isConnected) return true;
-  const url = useAgentStore.getState().url;
-  wsService.connect(url);
-  for (let i = 0; i < 40; i++) {
-    await new Promise((r) => setTimeout(r, 200));
-    if (wsService.isConnected) return true;
-  }
-  return false;
-}
 
 type Tab = "cloud" | "local";
 
@@ -106,8 +94,8 @@ function CloudModelConfig() {
   const handleCloudTest = async () => {
     setCloudTest({ testing: true });
 
-    const ok = await ensureWsConnected();
-    if (!ok) {
+    const ready = await wsService.waitForConnection(5000);
+    if (!ready) {
       setCloudTest({ testing: false, success: false, message: t("settings.model_test_error") });
       return;
     }
@@ -167,7 +155,7 @@ function CloudModelConfig() {
             >
               {vendors.map((v) => (
                   <option key={v.vendor} value={v.vendor}>
-                    {v.vendor} — {v.description}
+                     {v.vendor}
                   </option>
                 ))}
                 <option value={CUSTOM_VENDOR}>{t("settings.model_custom_option")}</option>
@@ -317,8 +305,8 @@ function LocalModelConfig() {
   const handleLocalTest = async () => {
     setLocalTest({ testing: true });
 
-    const ok = await ensureWsConnected();
-    if (!ok) {
+    const ready = await wsService.waitForConnection(5000);
+    if (!ready) {
       setLocalTest({ testing: false, success: false, message: t("settings.model_test_error") });
       return;
     }

@@ -70,6 +70,32 @@ class WebSocketService {
     return this.ws?.readyState === WebSocket.OPEN;
   }
 
+  get isConnecting(): boolean {
+    return this.ws?.readyState === WebSocket.CONNECTING;
+  }
+
+  waitForConnection(timeoutMs = 5000): Promise<boolean> {
+    return new Promise((resolve) => {
+      if (this.isConnected) return resolve(true);
+      if (!this.ws || this.ws.readyState !== WebSocket.CONNECTING) return resolve(false);
+
+      const onOpen = () => {
+        cleanup();
+        resolve(true);
+      };
+      const timer = setTimeout(() => {
+        cleanup();
+        resolve(this.isConnected);
+      }, timeoutMs);
+      const cleanup = () => {
+        clearTimeout(timer);
+        this.ws?.removeEventListener("open", onOpen);
+      };
+
+      this.ws.addEventListener("open", onOpen);
+    });
+  }
+
   on(type: string, handler: MessageHandler) {
     if (!this.handlers.has(type)) {
       this.handlers.set(type, []);

@@ -1,8 +1,62 @@
 import { useState, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useSettingsStore } from "../../stores/settingsStore";
-import { cloneVoice, generateVoice } from "../../services/voice";
+import { cloneVoice, generateVoice, previewVoice } from "../../services/voice";
 import { playAudio } from "../../services/audio";
+
+function VoicePresetCard({
+  voiceId,
+  emoji,
+  label,
+  active,
+  onSelect,
+}: {
+  voiceId: string;
+  emoji: string;
+  label: string;
+  active: boolean;
+  onSelect: () => void;
+}) {
+  const [previewing, setPreviewing] = useState(false);
+  const { t } = useTranslation();
+
+  const handlePreview = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (previewing) return;
+    setPreviewing(true);
+    const audio = await previewVoice(voiceId);
+    if (audio) {
+      await playAudio(audio, () => {}, () => setPreviewing(false));
+    } else {
+      setPreviewing(false);
+    }
+  };
+
+  return (
+    <div
+      onClick={onSelect}
+      className={`group p-2 rounded-lg text-xs text-center transition-all relative cursor-pointer ${
+        active
+          ? "bg-primary-50 border border-primary-300 text-primary-700"
+          : "bg-gray-50 border border-gray-100 text-gray-600 hover:bg-gray-100"
+      }`}
+    >
+      <div className="text-base mb-0.5">{emoji}</div>
+      {label}
+      <button
+        onClick={handlePreview}
+        disabled={previewing}
+        className="absolute top-1 right-1 w-5 h-5 flex items-center justify-center
+                   rounded-full bg-white/80 hover:bg-white shadow-sm
+                   text-xs opacity-0 group-hover:opacity-100 transition-opacity
+                   disabled:opacity-50"
+        title={t("settings.voice_preview")}
+      >
+        {previewing ? "⏳" : "▶"}
+      </button>
+    </div>
+  );
+}
 
 export function VoiceConfig() {
   const { t } = useTranslation();
@@ -84,7 +138,7 @@ export function VoiceConfig() {
             <div className="grid grid-cols-2 gap-1.5">
               {[
                 { id: "edge", name: "Edge TTS", descKey: "voice_engine_free" },
-                { id: "xiaomi", name: "小米 MiMo", descKey: "voice_engine_cloud" },
+                { id: "xiaomi", name: "MiMo", descKey: "voice_engine_cloud" },
                 { id: "openai", name: "OpenAI", descKey: "voice_engine_paid" },
                 { id: "kokoro", name: "Kokoro", descKey: "voice_engine_local_beta" },
               ].map((e) => (
@@ -109,18 +163,14 @@ export function VoiceConfig() {
             <label className="text-xs text-gray-500 block mb-2">{t("settings.voice_presets")}</label>
             <div className="grid grid-cols-3 gap-1.5">
               {PRESETS.map((v) => (
-                <button
+                <VoicePresetCard
                   key={v.id}
-                  onClick={() => setSetting("voice.preset_id", v.id)}
-                  className={`p-2 rounded-lg text-xs text-center transition-all ${
-                    settings["voice.preset_id"] === v.id
-                      ? "bg-primary-50 border border-primary-300 text-primary-700"
-                      : "bg-gray-50 border border-gray-100 text-gray-600 hover:bg-gray-100"
-                  }`}
-                >
-                  <div className="text-base mb-0.5">{v.emoji}</div>
-                  {t(`settings.${v.nameKey}`)}
-                </button>
+                  voiceId={v.id}
+                  emoji={v.emoji}
+                  label={t(`settings.${v.nameKey}`)}
+                  active={settings["voice.preset_id"] === v.id}
+                  onSelect={() => setSetting("voice.preset_id", v.id)}
+                />
               ))}
             </div>
           </div>

@@ -62,8 +62,9 @@ export async function cloneVoice(
 export async function previewVoice(
   voiceId: string,
 ): Promise<string | null> {
-  // 检查 WebSocket 是否已连接
-  if (!wsService.isConnected) {
+  // 等待 WebSocket 连接就绪（最多 5s，处理重连中状态）
+  const ready = await wsService.waitForConnection(5000);
+  if (!ready) {
     console.warn("[Voice] WebSocket 未连接，无法试听");
     return null;
   }

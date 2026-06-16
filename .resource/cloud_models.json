@@ -18,7 +18,7 @@
             ]
         },
         {
-            "vendor": "小米订阅版",
+            "vendor": "MiMo Plan",
             "description": "小米 AI 开放平台包月订阅模式，订阅后解锁多款核心模型",
             "supported_modes": [
                 "openai",

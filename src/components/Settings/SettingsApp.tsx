@@ -1,6 +1,8 @@
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useRef } from "react";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { SettingsPanel } from "./SettingsPanel";
+import { wsService } from "../../services/websocket";
+import { useAgentStore } from "../../stores/agentStore";
 
 /**
  * Settings App — standalone settings window.
@@ -9,9 +11,11 @@ import { SettingsPanel } from "./SettingsPanel";
  * - Draggable header (set via data-tauri-drag-region in SettingsPanel)
  * - Auto-hide on Escape (keeps WebView2 alive for instant re-show)
  * - Focus on mount (window is pre-created hidden by PetApp)
+ * - Auto-connect WebSocket on mount with retry
  */
 export function SettingsApp() {
   const appWindow = getCurrentWebviewWindow();
+  const retryRef = useRef<ReturnType<typeof setTimeout>>();
 
   // ── Focus window on mount (already shown by PetApp) ────────
   useEffect(() => {
@@ -26,6 +30,27 @@ export function SettingsApp() {
       await appWindow.close().catch(() => {});
     }
   }, [appWindow]);
+
+  // ── Auto-connect WebSocket on mount with retry ────────────
+  useEffect(() => {
+    const tryConnect = () => {
+      if (wsService.isConnected || wsService.isConnecting) return;
+      wsService.connect(useAgentStore.getState().url);
+    };
+
+    tryConnect();
+
+    const unsubscribe = useAgentStore.subscribe((state, prevState) => {
+      if (prevState.status === "connecting" && state.status === "disconnected") {
+        retryRef.current = setTimeout(tryConnect, 3000);
+      }
+    });
+
+    return () => {
+      unsubscribe();
+      clearTimeout(retryRef.current);
+    };
+  }, []);
 
   // ── Keyboard: Escape to hide ────────────────────────────────
   useEffect(() => {
