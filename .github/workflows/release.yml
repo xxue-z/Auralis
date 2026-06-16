@@ -8,8 +8,22 @@ on:
 permissions:
   contents: write
 
+env:
+  VERSION: ${{ github.ref_name }}
+
 jobs:
+  # cleanup old draft before building, so each run starts fresh
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete existing draft release for this tag
+        run: |
+          gh release delete "${{ github.ref_name }}" --yes --cleanup-tag 2>/dev/null || true
+        env:
+          GH_TOKEN: ${{ github.token }}
+
   build-windows:
+    needs: cleanup
     runs-on: windows-latest
     defaults:
       run:
@@ -53,12 +67,22 @@ jobs:
       - name: Verify agent executable exists
         run: Test-Path agent/dist/auralis-agent.exe
 
-      - name: Build Tauri app (includes agent as resource)
+      - name: Inject version and agent resource
+        run: |
+          $v = "${{ github.ref_name }}" -replace '^v', ''
+
+          $cfg = Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json
+          $cfg.version = $v
+          $cfg.bundle.resources = @{ "../agent/dist/auralis-agent.exe" = "agent/auralis-agent.exe" }
+          $cfg | ConvertTo-Json -Depth 10 | Set-Content src-tauri/tauri.conf.json -Encoding UTF8
+
+          (Get-Content src-tauri/Cargo.toml) -replace '^version = ".*"', "version = `"$v`"" | Set-Content src-tauri/Cargo.toml -Encoding UTF8
+
+      - name: Build Tauri app
         run: npm run tauri build
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          TAURI_CONFIG: '{"bundle":{"resources":{"../agent/dist/auralis-agent.exe":"agent/auralis-agent.exe"}}}'
 
       - name: Upload release assets
         uses: softprops/action-gh-release@v2
@@ -71,6 +95,7 @@ jobs:
           name: Auralis ${{ github.ref_name }}
 
   build-linux:
+    needs: cleanup
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -94,6 +119,11 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
+      - name: Inject version
+        run: |
+          v=$(echo "${{ github.ref_name }}" | sed 's/^v//')
+          node scripts/inject-version.js "$v"
+
       - name: Build Tauri app
         run: npm run tauri build
 
@@ -106,6 +136,7 @@ jobs:
           draft: true
 
   build-macos:
+    needs: cleanup
     runs-on: macos-latest
     steps:
       - name: Checkout
@@ -122,6 +153,11 @@ jobs:
 
       - name: Install frontend dependencies
         run: npm ci
+
+      - name: Inject version
+        run: |
+          v=$(echo "${{ github.ref_name }}" | sed 's/^v//')
+          node scripts/inject-version.js "$v"
 
       - name: Build Tauri app
         run: npm run tauri build
