@@ -39,8 +39,6 @@
       "icons/icon.png",
       "icons/icon.ico"
     ],
-    "resources": {
-      "../agent/dist/auralis-agent.exe": "agent/auralis-agent.exe"
-    }
+    "resources": {}
   }
 }
