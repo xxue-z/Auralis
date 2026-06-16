@@ -21,6 +21,8 @@ agent/.env
 
 # Agent 数据文件
 agent/data/
+agent/dist/
+agent/*.spec
 *.db
 *.sqlite
 

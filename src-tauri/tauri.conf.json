@@ -37,6 +37,9 @@
     "targets": "all",
     "icon": [
       "icons/icon.png"
-    ]
+    ],
+    "resources": {
+      "../agent/dist/auralis-agent.exe": "agent/auralis-agent.exe"
+    }
   }
 }

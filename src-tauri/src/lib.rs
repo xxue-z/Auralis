@@ -2,8 +2,12 @@ mod commands;
 mod os_adapter;
 mod tray;
 
+use std::path::PathBuf;
 use std::sync::Mutex;
 use tauri::Manager;
+
+/// 全局资源目录（设置阶段写入，供 start_agent 使用）
+static AGENT_BIN: once_cell::sync::OnceCell<PathBuf> = once_cell::sync::OnceCell::new();
 
 /// Agent 进程管理器
 pub struct AgentProcessManager {
@@ -33,31 +37,43 @@ impl AgentProcessManager {
             let _ = child.wait();
         }
 
-        // 获取项目根目录
-        let current_exe = std::env::current_exe().map_err(|e| e.to_string())?;
-        let exe_dir = current_exe.parent().ok_or("无法获取可执行文件目录")?;
-        log::info!("可执行文件目录: {}", exe_dir.display());
-
-        // Agent 目录在项目根目录下的 agent 文件夹
-        // 对于开发模式，exe 在 target/debug 下，需要向上两级
-        let agent_dir = if exe_dir.join("../../agent").exists() {
-            exe_dir.join("../../agent")
-        } else if exe_dir.join("../agent").exists() {
-            exe_dir.join("../agent")
+        // 确定 Agent 可执行文件路径
+        let (agent_exe, agent_dir) = if let Some(bin_path) = AGENT_BIN.get() {
+            // 发布模式：使用 bundle 中的 exe
+            let dir = bin_path.parent().ok_or("无法获取 agent 目录")?;
+            (bin_path.clone(), dir.to_path_buf())
         } else {
-            return Err("找不到 agent 目录".to_string());
-        };
-        log::info!("Agent 目录: {}", agent_dir.display());
+            // 开发模式：使用 venv python + server.py
+            let current_exe = std::env::current_exe().map_err(|e| e.to_string())?;
+            let exe_dir = current_exe.parent().ok_or("无法获取可执行文件目录")?;
 
-        let venv_python = agent_dir.join(".venv/Scripts/python.exe");
-        if !venv_python.exists() {
-            return Err(format!("Python 虚拟环境不存在: {}", venv_python.display()));
-        }
-        log::info!("Python 路径: {}", venv_python.display());
+            let agent_dir = if exe_dir.join("../../agent").exists() {
+                exe_dir.join("../../agent")
+            } else if exe_dir.join("../agent").exists() {
+                exe_dir.join("../agent")
+            } else {
+                return Err("找不到 agent 目录".to_string());
+            };
+
+            let venv_python = agent_dir.join(".venv/Scripts/python.exe");
+            if !venv_python.exists() {
+                return Err(format!("Python 虚拟环境不存在: {}", venv_python.display()));
+            }
+            (venv_python, agent_dir)
+        };
+
+        log::info!("Agent 可执行文件: {}", agent_exe.display());
+        log::info!("Agent 工作目录: {}", agent_dir.display());
 
         // 启动 Agent 进程
-        let child = std::process::Command::new(&venv_python)
-            .arg("server.py")
+        // 发布模式：agent_exe 是 PyInstaller 打包的单文件 exe（不含 server.py 参数）
+        // 开发模式：agent_exe 是 python.exe，需要传入 server.py
+        let is_release = AGENT_BIN.get().is_some();
+        let mut cmd = std::process::Command::new(&agent_exe);
+        if !is_release {
+            cmd.arg("server.py");
+        }
+        let child = cmd
             .current_dir(&agent_dir)
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
@@ -134,6 +150,15 @@ pub fn run() {
                 if models_dir.exists() || std::fs::create_dir_all(&models_dir).is_ok() {
                     let _ = scope.allow_directory(&models_dir, true);
                     log::info!("允许 asset 协议访问: {}", models_dir.display());
+                }
+            }
+
+            // 检查资源目录中的 Agent 可执行文件（发布模式）
+            if let Ok(resource_dir) = app.path().resource_dir() {
+                let bundled_agent = resource_dir.join("agent").join("auralis-agent.exe");
+                if bundled_agent.exists() {
+                    let _ = AGENT_BIN.set(bundled_agent);
+                    log::info!("找到 bundled agent 可执行文件");
                 }
             }
 
